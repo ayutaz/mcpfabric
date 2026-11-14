@@ -191,12 +191,29 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     const out = await tool("sleep_in_bed", { waitSeconds: 30 });
     assert.match(out, /\[done\][\s\S]*sleeping in the red_bed at/);
     assert.equal(world.count("minecraft:red_bed"), 0, "the bed was placed");
-    world.player.y = 64;
-    world.player.x = 0.5;
-    world.player.z = 0.5;
+    const wake = () => {
+      world.sleeping = false;
+      world.player.y = 64;
+      world.player.x = 0.5;
+      world.player.z = 0.5;
+    };
+    wake();
     world.sleepRefusal = "You may not rest now; there are monsters nearby";
     const refused = await tool("sleep_in_bed", { waitSeconds: 30 });
     assert.match(refused, /\[failed\][\s\S]*monsters nearby/);
+    // The game ignores the clicks (seen on a dedicated server): give up on that bed with advice.
+    wake();
+    world.sleepRefusal = undefined;
+    world.bedSilent = true;
+    const silent = await tool("sleep_in_bed", { waitSeconds: 40 });
+    assert.match(silent, /\[failed\][\s\S]*does not answer clicks on the red_bed[\s\S]*free air above it/);
+    // A 1.21.6 dedicated server: placeAt answers "Success[...]" with placed=null. The bed must count as placed.
+    const remote = setup();
+    remote.world.remote = true;
+    remote.world.give("minecraft:blue_bed", 1, 12);
+    const out2 = await remote.tool("sleep_in_bed", { waitSeconds: 30 });
+    assert.match(out2, /\[done\][\s\S]*sleeping in the blue_bed at[\s\S]*At dawn break the bed/);
+    assert.equal(remote.world.calls.filter((c) => c.startsWith("placeAt:")).length, 1, "placed once, no retry with an empty hand");
   },
   craft_item: async ({ world, tool }) => {
     world.give("minecraft:oak_planks", 2);

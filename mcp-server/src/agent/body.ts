@@ -29,6 +29,8 @@ export interface SelfState extends Pos {
   onGround: boolean;
   inWater: boolean;
   selectedSlot: number;
+  /** Lying in a bed (absent from older mods). */
+  sleeping?: boolean;
 }
 
 export interface InvItem {
@@ -136,7 +138,11 @@ export interface Recipe {
 }
 
 export interface PlaceAtResult {
-  /** SUCCESS/CONSUME..., or NO_SUPPORT, OUT_OF_REACH, OCCUPIED, CANNOT_PLACE, NO_CLICK_GIVES_THAT_STATE. */
+  /**
+   * The click's InteractionResult as the game prints it (1.21.2+: "Success[...]", "Consume[...]"; older:
+   * "SUCCESS", "CONSUME"), or NO_SUPPORT, OUT_OF_REACH, OCCUPIED, CANNOT_PLACE, NO_CLICK_GIVES_THAT_STATE.
+   * Compare case-insensitively.
+   */
   result: string;
   /** null on a remote server (only the prediction is known). */
   placed: boolean | null;

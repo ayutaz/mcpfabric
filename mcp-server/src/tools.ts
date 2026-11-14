@@ -401,7 +401,7 @@ export const TOOLS: ToolDef[] = [
     method: "player.getState",
     title: "Get local player state",
     description:
-      "Client-only. Full state of YOUR player: position, yaw/pitch, motion, health, food, saturation, air, XP, game mode, on-ground, in-fluid, selected hotbar slot, dimension.",
+      "Client-only. Full state of YOUR player: position, yaw/pitch, motion, health, food, saturation, air, XP, game mode, on-ground, in-fluid, selected hotbar slot, dimension, sleeping (lying in a bed).",
     inputSchema: {},
     annotations: READ,
   },

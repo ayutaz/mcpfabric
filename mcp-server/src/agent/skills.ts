@@ -1036,6 +1036,10 @@ export interface SleepOptions {
 }
 
 const BED = /^minecraft:[a-z_]+_bed$/;
+/** A click that went through: "Success[...]" / "Consume[...]" on 1.21.2+, "SUCCESS" / "CONSUME" before. */
+const CLICK_OK = /^(success|consume)/i;
+/** Bed clicks without any answer from the game before the job gives up on that bed. */
+const SILENT_BED_CLICKS = 4;
 const DIRS: [string, number, number][] = [
   ["north", 0, -1],
   ["south", 0, 1],
@@ -1075,7 +1079,8 @@ export async function sleepInBed(rt: AgentRuntime, ctx: JobContext, opts: SleepO
         const r: PlaceAtResult = await rt.body
           .placeAt(foot, `${item.id}[part=foot,facing=${facing}]`)
           .catch((e: unknown) => ({ result: e instanceof Error ? e.message : String(e), placed: false }));
-        if (/^(SUCCESS|CONSUME)/.test(r.result)) {
+        // On a remote server `placed` is null and only the click result is known.
+        if (r.placed === true || (r.placed !== false && CLICK_OK.test(r.result))) {
           bed = { id: item.id, ...foot };
           ctx.log(`placed ${shortId(item.id)} at ${fmtPos(foot)} facing ${facing}`);
           break outer;
@@ -1090,26 +1095,47 @@ export async function sleepInBed(rt: AgentRuntime, ctx: JobContext, opts: SleepO
 
   let since = (await rt.body.events({ types: ["system_message"], limit: 1 }).catch(() => undefined))?.lastId;
   let said = "";
+  let silent = 0;
   for (;;) {
     ctx.checkpoint();
     await rt.body.lookAt({ x: center.x, y: bed.y + 0.4, z: center.z }).catch(() => undefined);
-    await rt.body.useItem().catch(() => undefined);
+    const click = await rt.body.useItem().catch((e: unknown) => ({ target: "error", result: e instanceof Error ? e.message : String(e) }));
     await ctx.sleep(1500);
     const ev = await rt.body.events({ types: ["system_message"], ...(since !== undefined ? { sinceId: since } : {}) }).catch(() => undefined);
+    let answered = false;
     if (ev) {
       since = ev.lastId;
-      const texts = ev.events.map((e) => String(e.data?.text ?? "")).filter((t) => t && !/respawn point/i.test(t));
+      const all = ev.events.map((e) => String(e.data?.text ?? "")).filter(Boolean);
+      // "Respawn point set" also proves the server took the click (it comes before the time/monster checks).
+      answered = all.length > 0;
+      const texts = all.filter((t) => !/respawn point/i.test(t));
       if (texts.length) said = texts[texts.length - 1]!.slice(0, 120);
     }
-    // Lying in a bed puts you on its head block, 0.56-0.69 above its base.
     const s = await rt.body.self();
-    const dy = s.y - bed.y;
-    if (horizontalDistance(s, center) < 1.6 && dy > 0.4 && dy < 0.9) {
-      return `sleeping in the ${shortId(bed.id)} at ${fmtPos(bed)}; the night passes once the server agrees. Stay in bed (do not move) and wait.`;
+    if (asleep(s, bed, center)) {
+      return `sleeping in the ${shortId(bed.id)} at ${fmtPos(bed)}; the night passes once the server agrees. Stay in bed (do not move) and wait. ` +
+        `At dawn break the bed and pick it up, so you have it for the next night.`;
     }
     if (/monsters nearby|obstructed|too far/i.test(said)) throw new JobFailure(`the game says "${said}": deal with it (fight job, wall in, or move the bed) and retry`);
+    silent = answered ? 0 : silent + 1;
+    if (silent >= SILENT_BED_CLICKS) {
+      throw new JobFailure(
+        `the game does not answer clicks on the ${shortId(bed.id)} at ${fmtPos(bed)} (last click: ${click?.target ?? "?"} ${String(click?.result ?? "").replace(/\[.*$/, "")}): ` +
+          `a bed needs free air above it and you standing next to it; break it, place it on open flat ground (or in a 2-high room) and retry`,
+      );
+    }
     if (Date.now() > deadline) throw new JobFailure(`could not lie down${said ? `: the game says "${said}"` : ""}`);
     ctx.progress(said ? `waiting: ${said}` : "trying the bed");
     await ctx.sleep(3000);
   }
+}
+
+/**
+ * In bed: the mod's `sleeping` flag, or for older mods the position (lying puts you 0.56-0.69 above the
+ * bed's base, on its head block; standing on top of the bed looks the same, so the flag wins when present).
+ */
+function asleep(s: SelfState, bed: Pos, center: Pos): boolean {
+  if (typeof s.sleeping === "boolean") return s.sleeping;
+  const dy = s.y - bed.y;
+  return horizontalDistance(s, center) < 1.6 && dy > 0.4 && dy < 0.9;
 }

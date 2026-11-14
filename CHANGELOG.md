@@ -12,7 +12,10 @@ All notable changes to this project are documented here. The format is based on
   the weapon's cooldown until none is left in the radius; stops at low health and skips creepers
   unless asked.
 - `sleep_in_bed` agent job: uses a bed within 24 blocks or places one from the inventory, lies down
-  (waiting for dusk if needed) and reports the game's refusal ("monsters nearby", "obstructed").
+  (waiting for dusk if needed) and reports the game's refusal ("monsters nearby", "obstructed"), or
+  gives up on a bed the game does not answer. Click results are compared case-insensitively
+  (1.21.2+ prints `Success[...]`; on a dedicated server `placed` is null).
+- `get_self` / `player.getState` report `sleeping` (lying in a bed).
 - `syncClientTickRate` config flag (client, off by default): when a test rig speeds the server up with
   `/tick rate`, the client ticks at the same rate instead of vanilla's 20 tps floor. Agent jobs scale
   their tick-based timers (attack cooldowns) by `MCPFABRIC_TICK_RATE`.

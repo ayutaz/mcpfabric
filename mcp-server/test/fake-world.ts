@@ -37,6 +37,12 @@ export class FakeWorld implements Bridge {
   /** Game messages for events.getRecent; `sleepRefusal` makes a bed answer with that message instead. */
   events: { id: number; type: string; data: Record<string, unknown> }[] = [];
   sleepRefusal?: string;
+  /** Answer like a dedicated server on 1.21.6: "Success[...]" click results, `placed: null`. */
+  remote = false;
+  /** Beds take clicks but the server never answers (no message, no sleep). */
+  bedSilent = false;
+  /** The player lies in a bed (player.getState `sleeping`). */
+  sleeping = false;
   private seq = 0;
   open: { type: string; pos?: P; grid?: { result: { id: string; count: number } | null } } | null = null;
 
@@ -112,7 +118,7 @@ export class FakeWorld implements Bridge {
       case "session.info":
         return { worldId: this.worldId, kind: "singleplayer", name: "test" };
       case "player.getState":
-        return { x: p.x, y: p.y, z: p.z, yaw: 0, pitch: 0, health: p.health, maxHealth: 20, food: 20, dimension: p.dimension, gameMode: "survival", onGround: true, inWater: false, selectedSlot: p.selected };
+        return { x: p.x, y: p.y, z: p.z, yaw: 0, pitch: 0, health: p.health, maxHealth: 20, food: 20, dimension: p.dimension, gameMode: "survival", onGround: true, inWater: false, selectedSlot: p.selected, sleeping: this.sleeping };
       case "player.getInventory": {
         const items = [...this.slots].map(([slot, s]) => ({ slot, ...s }));
         return { selectedSlot: p.selected, hotbar: items.filter((i) => i.slot < 9), main: items.filter((i) => i.slot >= 9) };
@@ -214,12 +220,16 @@ export class FakeWorld implements Bridge {
         const bed = [...this.blocks].map(([k, id]) => ({ id, pos: k.split(",").map(Number) as [number, number, number] }))
           .find((b) => /_bed\b/.test(b.id) && Math.hypot(b.pos[0] + 0.5 - p.x, b.pos[2] + 0.5 - p.z) < 3);
         if (!bed) return { target: "air", result: "PASS" };
+        const ok = this.remote ? "Success[swingSource=SERVER, itemContext=ItemContext[wasItemInteraction=true, heldItemTransformedTo=null]]" : "SUCCESS";
+        if (this.bedSilent) return { target: "block", result: ok };
         if (this.sleepRefusal) {
           this.events.push({ id: this.events.length + 1, type: "system_message", data: { text: this.sleepRefusal, overlay: true } });
-          return { target: "block", result: "SUCCESS" };
+          return { target: "block", result: ok };
         }
+        this.events.push({ id: this.events.length + 1, type: "system_message", data: { text: "Respawn point set", overlay: false } });
         [p.x, p.y, p.z] = [bed.pos[0] + 0.5, bed.pos[1] + 0.5625, bed.pos[2] + 0.5];
-        return { target: "block", result: "SUCCESS" };
+        this.sleeping = true;
+        return { target: "block", result: ok };
       }
       case "events.getRecent": {
         const since = a.sinceId ?? 0;
@@ -269,6 +279,7 @@ export class FakeWorld implements Bridge {
         if (/_door$/.test(base)) this.blocks.set(key({ x: a.x, y: a.y + 1, z: a.z }), wanted.replace("half=lower", "half=upper"));
         this.removeItem(held.id, 1);
         this.calls.push(`placeAt:${key(a as P)}`);
+        if (this.remote) return { result: "Success[swingSource=CLIENT, itemContext=ItemContext[wasItemInteraction=true, heldItemTransformedTo=null]]", placed: null, matches: null, predicted: wanted };
         return { result: "SUCCESS", placed: true, matches: true, serverState: wanted };
       }
       case "world.setBlock": {

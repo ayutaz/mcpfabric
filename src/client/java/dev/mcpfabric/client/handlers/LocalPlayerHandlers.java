@@ -43,6 +43,7 @@ public final class LocalPlayerHandlers {
 			o.addProperty("sprinting", p.isSprinting());
 			o.addProperty("sneaking", p.isShiftKeyDown());
 			o.addProperty("usingItem", p.isUsingItem());
+			o.addProperty("sleeping", p.isSleeping());
 			o.addProperty("selectedSlot", selectedSlot(p.getInventory()));
 			//? if <1.21.11 {
 				o.addProperty("dimension", p.level().dimension().location().toString());
