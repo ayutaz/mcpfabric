@@ -42,6 +42,9 @@ All notable changes to this project are documented here. The format is based on
   (`reflex_shelter`). A hit in the hole re-seals an open top; the reflex ends after dawn (time of day 1000,
   or up to 2500 while a monster is within 12 blocks), when the player is hurt down to 8 health, or when a step fails, and reports its start, sealing and end as `reflex_shelter`
   events. `player.getState` reports `reflex: "shelter_<phase>"`, `reflexShelters` and `reflexShelterResult`.
+  A daytime respawn with a monster within 16 blocks digs in too (`start_day`); that shelter is held for at
+  least 100 ticks, then while a monster stays within 12 blocks for up to 2400 ticks (ends `clear` or
+  `day_timeout`), and by the night rules if dusk comes meanwhile.
 - The client navigation world treats the empty placeholder chunks the client returns for chunks it has not
   received yet as unloaded instead of air.
 - `surroundings` lists each mob's and player's UUID, so `attack_entity` / `use_entity` work in

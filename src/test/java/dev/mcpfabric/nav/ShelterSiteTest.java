@@ -66,6 +66,17 @@ class ShelterSiteTest {
 	}
 
 	@Test
+	void daytimeRespawnDigsInOnlyNextToMonstersAndComesOutWhenTheyLeave() {
+		assertFalse(ShelterSite.startsAt(6_000, false), "a quiet daytime respawn plays on");
+		assertTrue(ShelterSite.startsAt(6_000, true), "a daytime respawn next to a monster digs in");
+		assertTrue(ShelterSite.startsAt(18_000, false), "night rules unchanged");
+		assertTrue(ShelterSite.holdsInDay(false, 0), "held a moment even when the monster is out of sight");
+		assertFalse(ShelterSite.holdsInDay(false, ShelterSite.DAY_HOLD_MIN));
+		assertTrue(ShelterSite.holdsInDay(true, ShelterSite.DAY_HOLD_MIN));
+		assertFalse(ShelterSite.holdsInDay(true, ShelterSite.DAY_HOLD_MAX), "never past the daytime limit");
+	}
+
+	@Test
 	void flatGroundGivesTheSpotUnderTheFeet() {
 		List<ShelterSite.Site> sites = find(new Grid(), ORIGIN);
 		assertFalse(sites.isEmpty());

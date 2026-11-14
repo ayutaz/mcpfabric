@@ -203,7 +203,8 @@ up to 3 blocks down) when water or lava touches it; pass `allowFluid: true` to d
 low air. After a respawn at night (or shortly before dusk), the bot digs
 itself into a sealed hole on dry ground nearby, away from monsters, and waits for morning; movement commands
 are refused (`reflex_shelter`) until it ends after dawn once no monster is close, or when the player is hurt
-down to low health in the hole.
+down to low health in the hole. A daytime respawn next to a monster (within 16 blocks) digs in the same way and
+comes out once no monster is close, or after about two minutes of game time.
 
 The `enable*` flags let you switch off dangerous capability groups. `enableUiControl` is the one
 that starts off: it lets the model click buttons and type into text fields of game screens

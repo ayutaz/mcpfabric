@@ -33,7 +33,9 @@ import java.util.Locale;
  * ground nearby (never next to water), digs three blocks straight down, seals the top with a dug block
  * and waits there until morning, without the model. Survival runs showed most deaths right after a
  * respawn at night, often in the pond at the world spawn, before the model could react. It starts from
- * shortly before dusk ({@link ShelterSite#startsAt}) and prefers sites away from monsters. While it runs,
+ * shortly before dusk ({@link ShelterSite#startsAt}) and prefers sites away from monsters. A daytime respawn
+ * digs in as well when a monster is close (the world spawn is a dark forest), and comes out once none is
+ * left nearby or after a minute or so ({@link ShelterSite#holdsInDay}). While it runs,
  * movement commands are refused ({@code reflex_shelter}); it ends after dawn once no monster is close
  * ({@link ShelterSite#holdsAt}), when the player is hurt down to low health, or when a step fails. Driven by {@link BotController} on the client tick, under its lock.
  */
@@ -86,6 +88,8 @@ final class ShelterReflex {
 	private String here;
 	private int planned;
 	private int relocations;
+	/** Dug in after a daytime respawn with a monster close: held by {@link ShelterSite#holdsInDay}. */
+	private boolean daytime;
 
 	ShelterReflex(BotController bot) {
 		this.bot = bot;
@@ -118,6 +122,12 @@ final class ShelterReflex {
 	}
 
 	String refusal() {
+		if (daytime) {
+			return "The respawn shelter reflex is running (" + state() + "): the player respawned next to monsters and"
+					+ " is digging in or waiting in the sealed hole until they leave (about a minute at most). Wait (e.g. a"
+					+ " script with mc.sleep) and try again; it also ends when the player is hurt down to low health, or if"
+					+ " a step fails.";
+		}
 		return "The respawn shelter reflex is running (" + state() + "): the player is digging in for the night or"
 				+ " waiting in the sealed hole for morning. Wait (e.g. a script with mc.sleep) and try again; it ends after"
 				+ " dawn once no monster is close, when the player is hurt down to low health, or if a step fails.";
@@ -156,12 +166,15 @@ final class ShelterReflex {
 		// Right after a respawn the chunks around the player are sent again: wait until it stands on them.
 		boolean landed = (p.onGround() || p.isInWater()) && !(level.getChunk(p.blockPosition()) instanceof EmptyLevelChunk);
 		if (!landed && phaseTicks < ARM_MAX_TICKS) return;
-		if (!ShelterSite.startsAt(dayTime(level))) {
-			phase = Phase.IDLE; // daytime respawn: nothing to do, the model plays on
+		boolean night = ShelterSite.startsAt(dayTime(level));
+		if (!ShelterSite.startsAt(dayTime(level),
+				!night && enemyNear(level, p.getX(), p.getY(), p.getZ(), ShelterSite.DAY_ENEMY_RADIUS))) {
+			phase = Phase.IDLE; // daytime respawn with no monster close: nothing to do, the model plays on
 			lastResult = "day";
 			return;
 		}
-		emit("start", p.blockPosition());
+		daytime = !night;
+		emit(daytime ? "start_day" : "start", p.blockPosition());
 		relocations = 0;
 		planned = 0;
 		search(level, p);
@@ -333,7 +346,14 @@ final class ShelterReflex {
 			}
 		}
 		lastHealth = health;
-		if (!ShelterSite.holdsAt(dayTime(level), enemyNear(level, p.getX(), p.getY(), p.getZ(), DAWN_ENEMY_RADIUS))) {
+		boolean enemy = enemyNear(level, p.getX(), p.getY(), p.getZ(), DAWN_ENEMY_RADIUS);
+		if (daytime && ShelterSite.startsAt(dayTime(level))) {
+			daytime = false; // dusk came during a daytime hold: keep it for the night
+			phaseTicks = 0;
+		}
+		if (daytime) {
+			if (!ShelterSite.holdsInDay(enemy, phaseTicks)) finish(enemy ? "day_timeout" : "clear");
+		} else if (!ShelterSite.holdsAt(dayTime(level), enemy)) {
 			finish("morning");
 		} else if (phaseTicks > HOLD_TICKS) {
 			finish("hold_timeout");

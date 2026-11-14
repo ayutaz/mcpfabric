@@ -41,6 +41,32 @@ public final class ShelterSite {
 		return enemyNear && t < DAWN_MAX;
 	}
 
+	/**
+	 * A daytime respawn digs in too when a monster is this close: the benchmark world spawns in a dark
+	 * oak forest, where skeletons and zombies live in the shade all day (three daytime respawns in a row
+	 * were shot there within two minutes).
+	 */
+	public static final double DAY_ENEMY_RADIUS = 16;
+	/** A daytime shelter is held at most this long (ticks) while monsters stay close ... */
+	public static final int DAY_HOLD_MAX = 2_400;
+	/** ... and at least this long, so a monster stepping out of sight for a moment does not end it. */
+	public static final int DAY_HOLD_MIN = 100;
+
+	/** Whether a respawn digs in: at night, or in the day with a monster close (see {@link #DAY_ENEMY_RADIUS}). */
+	public static boolean startsAt(long dayTime, boolean enemyNear) {
+		return startsAt(dayTime) || enemyNear;
+	}
+
+	/**
+	 * Whether a shelter dug in after a daytime respawn is kept, {@code heldTicks} after it was sealed:
+	 * while monsters are close, between {@link #DAY_HOLD_MIN} and {@link #DAY_HOLD_MAX}. Once
+	 * {@link #startsAt(long)} turns true during the wait (dusk), the reflex holds it by {@link #holdsAt} instead.
+	 */
+	public static boolean holdsInDay(boolean enemyNear, int heldTicks) {
+		if (heldTicks < DAY_HOLD_MIN) return true;
+		return enemyNear && heldTicks < DAY_HOLD_MAX;
+	}
+
 	/** A candidate: where to stand before digging, and how costly it is (distance plus digging time). */
 	public record Site(NavPos feet, double cost) {}
 
