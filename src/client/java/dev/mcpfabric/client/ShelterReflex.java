@@ -13,13 +13,18 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.EmptyLevelChunk;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -27,9 +32,10 @@ import java.util.Locale;
  * Respawn shelter reflex (config {@code reflexes}): after a respawn at night the bot walks to dry
  * ground nearby (never next to water), digs three blocks straight down, seals the top with a dug block
  * and waits there until morning, without the model. Survival runs showed most deaths right after a
- * respawn at night, often in the pond at the world spawn, before the model could react. While it runs,
- * movement commands are refused ({@code reflex_shelter}); it ends at dawn, when the player is hurt down
- * to low health, or when a step fails. Driven by {@link BotController} on the client tick, under its lock.
+ * respawn at night, often in the pond at the world spawn, before the model could react. It starts from
+ * shortly before dusk ({@link ShelterSite#startsAt}) and prefers sites away from monsters. While it runs,
+ * movement commands are refused ({@code reflex_shelter}); it ends after dawn once no monster is close
+ * ({@link ShelterSite#holdsAt}), when the player is hurt down to low health, or when a step fails. Driven by {@link BotController} on the client tick, under its lock.
  */
 final class ShelterReflex {
 	enum Phase { IDLE, ARMED, DRY, DIG, SEAL, HOLD }
@@ -50,8 +56,12 @@ final class ShelterReflex {
 	private static final int DRY_TICKS = 40 * 20;
 	private static final int DIG_TICKS = 60 * 20;
 	private static final int SEAL_TICKS = 10 * 20;
-	/** A night is 11 500 ticks; this bounds the wait if the day-time never reads as morning. */
-	private static final int HOLD_TICKS = 13_000;
+	/** From before dusk to past dawn is about 14 500 ticks; this bounds the wait if the day-time never reads as morning. */
+	private static final int HOLD_TICKS = 16_000;
+	/** Monsters this close to a candidate site push it to the back of the list. */
+	private static final double SITE_ENEMY_RADIUS = 6;
+	/** After dawn the shelter is kept while a monster is this close. */
+	private static final double DAWN_ENEMY_RADIUS = 12;
 	/** Ticks at the bottom for the dug blocks to be picked up before sealing. */
 	private static final int PICKUP_TICKS = 15;
 	/** Hurt in the sealed hole and down to this health, the reflex lets the model act. */
@@ -109,8 +119,8 @@ final class ShelterReflex {
 
 	String refusal() {
 		return "The respawn shelter reflex is running (" + state() + "): the player is digging in for the night or"
-				+ " waiting in the sealed hole for morning. Wait (e.g. a script with mc.sleep) and try again; it ends at"
-				+ " dawn, when the player is hurt down to low health, or if a step fails.";
+				+ " waiting in the sealed hole for morning. Wait (e.g. a script with mc.sleep) and try again; it ends after"
+				+ " dawn once no monster is close, when the player is hurt down to low health, or if a step fails.";
 	}
 
 	/** Ends the reflex if it runs (the config was switched off, the player left the world). */
@@ -146,7 +156,7 @@ final class ShelterReflex {
 		// Right after a respawn the chunks around the player are sent again: wait until it stands on them.
 		boolean landed = (p.onGround() || p.isInWater()) && !(level.getChunk(p.blockPosition()) instanceof EmptyLevelChunk);
 		if (!landed && phaseTicks < ARM_MAX_TICKS) return;
-		if (!night(level)) {
+		if (!ShelterSite.startsAt(dayTime(level))) {
 			phase = Phase.IDLE; // daytime respawn: nothing to do, the model plays on
 			lastResult = "day";
 			return;
@@ -162,8 +172,13 @@ final class ShelterReflex {
 
 	/** Candidate sites around where the player is now, cheapest first (its own column if that will do). */
 	private void search(ClientLevel level, LocalPlayer p) {
-		candidates = ShelterSite.find(new LevelNavWorld(level, p), pos(p.blockPosition()), SEARCH_RADIUS, SEARCH_UP,
-				SEARCH_DOWN, BotController.throwawaySlot(p) >= 0, q -> givesBlock(level, q));
+		List<ShelterSite.Site> found = ShelterSite.find(new LevelNavWorld(level, p), pos(p.blockPosition()), SEARCH_RADIUS,
+				SEARCH_UP, SEARCH_DOWN, BotController.throwawaySlot(p) >= 0, q -> givesBlock(level, q));
+		// Digging takes seconds: sites next to a monster (often waiting at the spawn) go last.
+		List<ShelterSite.Site> sorted = new ArrayList<>(found);
+		sorted.sort(Comparator.comparing((ShelterSite.Site s) -> enemyNear(level, s.feet().x() + 0.5, s.feet().y(),
+				s.feet().z() + 0.5, SITE_ENEMY_RADIUS)));
+		candidates = sorted;
 		candidate = 0;
 	}
 
@@ -318,7 +333,7 @@ final class ShelterReflex {
 			}
 		}
 		lastHealth = health;
-		if (!night(level)) {
+		if (!ShelterSite.holdsAt(dayTime(level), enemyNear(level, p.getX(), p.getY(), p.getZ(), DAWN_ENEMY_RADIUS))) {
 			finish("morning");
 		} else if (phaseTicks > HOLD_TICKS) {
 			finish("hold_timeout");
@@ -381,10 +396,11 @@ final class ShelterReflex {
 				|| s.is(Blocks.DIRT_PATH) || s.is(Blocks.FARMLAND);
 	}
 
-	/** Night as the supervisor counts it (day-time 12 500 up to the next dawn), with a margin at dawn. */
-	private static boolean night(ClientLevel level) {
-		long t = Math.floorMod(dayTime(level), 24000L);
-		return t >= 12500L || t < 200L;
+	/** A living monster within {@code radius} blocks of the point. */
+	private static boolean enemyNear(ClientLevel level, double x, double y, double z, double radius) {
+		AABB box = new AABB(x - radius, y - radius, z - radius, x + radius, y + radius, z + radius);
+		return !level.getEntitiesOfClass(LivingEntity.class, box,
+				e -> e instanceof Enemy && e.isAlive() && e.distanceToSqr(x, y, z) <= radius * radius).isEmpty();
 	}
 
 	private static long dayTime(ClientLevel level) {

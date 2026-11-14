@@ -52,6 +52,20 @@ class ShelterSiteTest {
 	}
 
 	@Test
+	void digsInFromBeforeDuskAndHoldsPastDawnWhileMonstersAreNear() {
+		assertFalse(ShelterSite.startsAt(6_000));
+		assertTrue(ShelterSite.startsAt(11_300), "a respawn just before dusk is still out at night");
+		assertTrue(ShelterSite.startsAt(18_000));
+		assertTrue(ShelterSite.startsAt(24_000 * 5 + 500), "taken modulo a day");
+		assertFalse(ShelterSite.startsAt(1_200));
+		assertTrue(ShelterSite.holdsAt(23_500, false));
+		assertTrue(ShelterSite.holdsAt(500, false), "monsters linger right after dawn");
+		assertFalse(ShelterSite.holdsAt(1_500, false));
+		assertTrue(ShelterSite.holdsAt(1_500, true));
+		assertFalse(ShelterSite.holdsAt(2_600, true), "never past the dawn limit");
+	}
+
+	@Test
 	void flatGroundGivesTheSpotUnderTheFeet() {
 		List<ShelterSite.Site> sites = find(new Grid(), ORIGIN);
 		assertFalse(sites.isEmpty());

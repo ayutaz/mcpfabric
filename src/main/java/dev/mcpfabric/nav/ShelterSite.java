@@ -16,8 +16,30 @@ public final class ShelterSite {
 	public static final int DEPTH = 3;
 	/** A dug cell may take this long to break (bare hands on stone take about 150 ticks). */
 	public static final float MAX_BREAK_TICKS = 160;
+	/**
+	 * Time of day (0..23999) from which a respawn digs in: shortly before dusk, since a body that
+	 * respawns then is still out in the open when the monsters come (night starts at 12 500).
+	 */
+	public static final long START_TIME = 11_000;
+	/** The shelter is held at least until this time of day after dawn (monsters linger). */
+	public static final long DAWN_HOLD = 1_000;
+	/** ... and while monsters are still close, at most until this time. */
+	public static final long DAWN_MAX = 2_500;
 
 	private ShelterSite() {}
+
+	/** Whether a respawn at this time of day (any long; taken modulo a day) digs in. */
+	public static boolean startsAt(long dayTime) {
+		long t = Math.floorMod(dayTime, 24_000L);
+		return t >= START_TIME || t < DAWN_HOLD;
+	}
+
+	/** Whether a sealed shelter is kept at this time of day, given monsters near the player or not. */
+	public static boolean holdsAt(long dayTime, boolean enemyNear) {
+		long t = Math.floorMod(dayTime, 24_000L);
+		if (t >= START_TIME || t < DAWN_HOLD) return true;
+		return enemyNear && t < DAWN_MAX;
+	}
 
 	/** A candidate: where to stand before digging, and how costly it is (distance plus digging time). */
 	public record Site(NavPos feet, double cost) {}
