@@ -1196,7 +1196,8 @@ export async function sleepInBed(rt: AgentRuntime, ctx: JobContext, opts: SleepO
     const s = await rt.body.self();
     if (asleep(s, bed, center)) {
       return `sleeping in the ${shortId(bed.id)} at ${fmtPos(bed)}; the night passes once the server agrees. Stay in bed (do not move) and wait. ` +
-        `At dawn break the bed and pick it up, so you have it for the next night.`;
+        `At dawn get the bed back with collect_blocks {"blocks": ["${shortId(bed.id)}"], "count": 1} (break_block leaves the bed on the ground), ` +
+        `so you have it for the next night.`;
     }
     if (/monsters nearby|obstructed|too far/i.test(said)) throw new JobFailure(`the game says "${said}": deal with it (fight job, wall in, or move the bed) and retry`);
     silent = answered ? 0 : silent + 1;

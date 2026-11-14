@@ -153,7 +153,7 @@ export class FakeWorld implements Bridge {
           if (!inArea(x, z)) continue;
           const base = id.replace(/\[.*$/, "");
           if (POI.test(base)) pois.push({ id: base, x, y, z, ...(/chest|barrel/.test(base) ? { container: true } : {}) });
-          if (find.includes(id) && (!this.lineOfSight || this.exposed({ x, y, z }))) found.push({ id, x, y, z, exposed: this.exposed({ x, y, z }) });
+          if (find.includes(base) && (!this.lineOfSight || this.exposed({ x, y, z }))) found.push({ id: base, x, y, z, exposed: this.exposed({ x, y, z }) });
         }
         return { dimension: p.dimension, player: { x: p.x, y: p.y, z: p.z }, radius, chunks, pois, found, ...(this.lineOfSight ? { lineOfSight: true, sightRange: 48 } : {}) };
       }
@@ -258,7 +258,7 @@ export class FakeWorld implements Bridge {
         return "ok";
       }
       case "interact.breakBlock": {
-        const id = this.blockAt(a as P);
+        const id = this.blockAt(a as P)?.replace(/\[.*$/, "");
         if (id) {
           this.blocks.delete(key(a as P));
           this.drops.push({ uuid: `drop-${++this.seq}`, id: DROPS[id] ?? id, count: 1, x: Math.floor(a.x) + 0.5, y: Math.floor(a.y), z: Math.floor(a.z) + 0.5 });

@@ -202,7 +202,7 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
   sleep_in_bed: async ({ world, tool }) => {
     world.give("minecraft:red_bed", 1, 12);
     const out = await tool("sleep_in_bed", { waitSeconds: 30 });
-    assert.match(out, /\[done\][\s\S]*sleeping in the red_bed at/);
+    assert.match(out, /\[done\][\s\S]*sleeping in the red_bed at[\s\S]*collect_blocks \{"blocks": \["red_bed"\], "count": 1\}/);
     assert.equal(world.count("minecraft:red_bed"), 0, "the bed was placed");
     const wake = () => {
       world.sleeping = false;
@@ -210,6 +210,12 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
       world.player.x = 0.5;
       world.player.z = 0.5;
     };
+    wake();
+    // The advice works: collect_blocks breaks the bed and picks it up.
+    assert.match(await tool("collect_blocks", { blocks: ["red_bed"], count: 1, waitSeconds: 30 }), /\[done\][\s\S]*inventory \+.*red_bed/);
+    assert.equal(world.count("minecraft:red_bed"), 1, "the bed is back in the inventory");
+    world.give("minecraft:red_bed", 0);
+    assert.match(await tool("sleep_in_bed", { waitSeconds: 30 }), /\[done\]/);
     wake();
     world.sleepRefusal = "You may not rest now; there are monsters nearby";
     const refused = await tool("sleep_in_bed", { waitSeconds: 30 });
@@ -225,7 +231,7 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     remote.world.remote = true;
     remote.world.give("minecraft:blue_bed", 1, 12);
     const out2 = await remote.tool("sleep_in_bed", { waitSeconds: 30 });
-    assert.match(out2, /\[done\][\s\S]*sleeping in the blue_bed at[\s\S]*At dawn break the bed/);
+    assert.match(out2, /\[done\][\s\S]*sleeping in the blue_bed at[\s\S]*At dawn get the bed back/);
     assert.equal(remote.world.calls.filter((c) => c.startsWith("placeAt:")).length, 1, "placed once, no retry with an empty hand");
     // Sealed in a 1x1 hole (the night shelter): no room for a bed, so it digs a bed-sized space beside
     // the player, away from water, and leaves the roof closed.
