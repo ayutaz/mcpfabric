@@ -34,6 +34,9 @@ export class FakeWorld implements Bridge {
   drops: { uuid: string; id: string; count: number; x: number; y: number; z: number }[] = [];
   /** Hostile mobs around the player. */
   mobs: { uuid: string; type: string; x: number; y: number; z: number; health: number }[] = [];
+  /** Game messages for events.getRecent; `sleepRefusal` makes a bed answer with that message instead. */
+  events: { id: number; type: string; data: Record<string, unknown> }[] = [];
+  sleepRefusal?: string;
   private seq = 0;
   open: { type: string; pos?: P; grid?: { result: { id: string; count: number } | null } } | null = null;
 
@@ -136,7 +139,8 @@ export class FakeWorld implements Bridge {
         for (const [k, id] of this.blocks) {
           const [x, y, z] = k.split(",").map(Number) as [number, number, number];
           if (!inArea(x, z)) continue;
-          if (POI.test(id)) pois.push({ id, x, y, z, ...(/chest|barrel/.test(id) ? { container: true } : {}) });
+          const base = id.replace(/\[.*$/, "");
+          if (POI.test(base)) pois.push({ id: base, x, y, z, ...(/chest|barrel/.test(base) ? { container: true } : {}) });
           if (find.includes(id)) found.push({ id, x, y, z, exposed: this.exposed({ x, y, z }) });
         }
         return { dimension: p.dimension, player: { x: p.x, y: p.y, z: p.z }, radius, chunks, pois, found };
@@ -205,6 +209,22 @@ export class FakeWorld implements Bridge {
         }
         this.calls.push(`attack:${a.uuid}`);
         return "ok";
+      }
+      case "interact.useItem": {
+        const bed = [...this.blocks].map(([k, id]) => ({ id, pos: k.split(",").map(Number) as [number, number, number] }))
+          .find((b) => /_bed\b/.test(b.id) && Math.hypot(b.pos[0] + 0.5 - p.x, b.pos[2] + 0.5 - p.z) < 3);
+        if (!bed) return { target: "air", result: "PASS" };
+        if (this.sleepRefusal) {
+          this.events.push({ id: this.events.length + 1, type: "system_message", data: { text: this.sleepRefusal, overlay: true } });
+          return { target: "block", result: "SUCCESS" };
+        }
+        [p.x, p.y, p.z] = [bed.pos[0] + 0.5, bed.pos[1] + 0.5625, bed.pos[2] + 0.5];
+        return { target: "block", result: "SUCCESS" };
+      }
+      case "events.getRecent": {
+        const since = a.sinceId ?? 0;
+        const types: string[] | undefined = a.types;
+        return { events: this.events.filter((e) => e.id > since && (!types || types.includes(e.type))), lastId: this.events.length };
       }
       case "control.lookAt":
       case "interact.stopBreaking":

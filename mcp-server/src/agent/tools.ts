@@ -30,7 +30,7 @@ import { formatMemory, MEMORY_KINDS, MEMORY_STATUSES, SentLedger, type Memory, t
 import { formatObserveReport } from "./observe.js";
 import { collectRecipes, formatPlan, plan } from "./planner.js";
 import type { AgentRuntime } from "./runtime.js";
-import { buildStructure, collect, containerItems, craft, explore, fight, openContainerAt, recordContainer, travel, verifyPlan } from "./skills.js";
+import { buildStructure, collect, containerItems, craft, explore, fight, openContainerAt, recordContainer, sleepInBed, travel, verifyPlan } from "./skills.js";
 import { chunkOf, renderMap, type MapMarker } from "./worldmap.js";
 import { briefSkills } from "../script/skills.js";
 
@@ -779,6 +779,18 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       startJob(rt, session, "fight", `within ${args.radius}`, args.waitSeconds, (ctx) =>
         fight(rt, ctx, { radius: args.radius, types: args.types, maxSeconds: args.maxSeconds, minHealth: args.minHealth, creepers: args.creepers }),
       ),
+  },
+  {
+    name: "sleep_in_bed",
+    title: "Sleep through the night (job)",
+    description:
+      "Background job: use a bed within 24 blocks, or place one from your inventory next to you, and lie down in it. Sleeping skips the night (no hostile mobs) and sets your respawn point there. Before dusk it waits and retries; 'monsters nearby' or 'obstructed' end the job with the game's message. Once asleep, do not move until morning.",
+    inputSchema: {
+      maxSeconds: z.number().int().min(10).max(300).optional().default(90).describe("How long to keep trying (waiting for dusk included)."),
+      waitSeconds,
+    },
+    annotations: WRITE,
+    run: async (rt, session, args) => startJob(rt, session, "sleep", "in a bed", args.waitSeconds, (ctx) => sleepInBed(rt, ctx, { maxSeconds: args.maxSeconds })),
   },
   {
     name: "craft_item",

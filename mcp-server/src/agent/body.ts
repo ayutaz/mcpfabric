@@ -209,6 +209,16 @@ export class Body {
     return this.bridge.call("control.lookAt", { ...p });
   }
 
+  /** Right-click with the held item: the block or entity under the crosshair first. */
+  useItem(): Promise<{ target?: string; result?: string }> {
+    return this.bridge.call("interact.useItem", {});
+  }
+
+  /** Recent game events from the mod's ring buffer, newer than `sinceId` when given. */
+  events(opts: { sinceId?: number; types?: string[]; limit?: number } = {}): Promise<{ events: { id: number; type: string; data?: Record<string, unknown> }[]; lastId: number }> {
+    return this.bridge.call("events.getRecent", { limit: opts.limit ?? 50, ...(opts.types ? { types: opts.types } : {}), ...(opts.sinceId !== undefined ? { sinceId: opts.sinceId } : {}) });
+  }
+
   breakBlock(p: Pos): Promise<unknown> {
     return this.bridge.call("interact.breakBlock", { ...p, mode: "survival" });
   }

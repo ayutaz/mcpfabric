@@ -4,7 +4,7 @@
  * the model issues one call instead of dozens of move/poll/verify round-trips.
  */
 import { BridgeError } from "../bridge.js";
-import type { BlockProbe, ContainerState, NavMoves, NearbyEntity, Recipe, SelfState } from "./body.js";
+import type { BlockProbe, ContainerState, NavMoves, NearbyEntity, PlaceAtResult, Recipe, SelfState } from "./body.js";
 import {
   canStand,
   compare,
@@ -52,6 +52,12 @@ export const eyeOf = (s: Pos): Pos => ({ x: s.x, y: s.y + EYE, z: s.z });
 export const centerOf = (b: Pos): Pos => ({ x: b.x + 0.5, y: b.y + 0.5, z: b.z + 0.5 });
 const posKey = (p: Pos) => `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 
+/**
+ * Real-time length of one game tick relative to vanilla: 1 at 20 tps; 1/3 when a test rig runs the game at
+ * 60 tps (`/tick rate`, MCPFABRIC_TICK_RATE). Timers that stand for game ticks (attack cooldowns) scale by it.
+ */
+export const TICK_SCALE = 20 / Math.max(1, Number(process.env.MCPFABRIC_TICK_RATE) || 20);
+
 function isNotFound(err: unknown): boolean {
   return err instanceof BridgeError && err.code === "not_found";
 }
@@ -89,7 +95,7 @@ export class Guard {
 
   /** Attack once if something hostile is close; returns whether it did. Rate-limited to the attack cooldown. */
   async check(): Promise<boolean> {
-    if (Date.now() - this.last < 650) return false;
+    if (Date.now() - this.last < 650 * TICK_SCALE) return false;
     this.last = Date.now();
     let mobs: NearbyEntity[];
     try {
@@ -957,14 +963,14 @@ export async function fight(rt: AgentRuntime, ctx: JobContext, opts: FightOption
   const types = opts.types?.map(fullId);
 
   const inv = await rt.body.inventory();
-  let cooldown = 300; // bare hand
+  let cooldown = 300 * TICK_SCALE; // bare hand
   let weapon = "bare hand";
   for (const [re, ms] of WEAPONS) {
     const it = [...inv.hotbar, ...inv.main].find((i) => re.test(i.id));
     if (!it) continue;
     if (it.slot <= 8) await rt.body.selectHotbar(it.slot);
     else await rt.body.swapSlots(it.slot, inv.selectedSlot);
-    cooldown = ms;
+    cooldown = ms * TICK_SCALE;
     weapon = shortId(it.id);
     break;
   }
@@ -1020,5 +1026,90 @@ export async function fight(rt: AgentRuntime, ctx: JobContext, opts: FightOption
     }
   } finally {
     await rt.body.navStop().catch(() => undefined);
+  }
+}
+
+// ----- sleep ------------------------------------------------------------------------------------
+
+export interface SleepOptions {
+  maxSeconds?: number;
+}
+
+const BED = /^minecraft:[a-z_]+_bed$/;
+const DIRS: [string, number, number][] = [
+  ["north", 0, -1],
+  ["south", 0, 1],
+  ["west", -1, 0],
+  ["east", 1, 0],
+];
+
+/**
+ * Sleep through the night: use a bed within 24 blocks, or place one from the inventory next to
+ * you, then right-click it until the game lets you lie down. "Only at night" is waited out (dusk);
+ * "monsters nearby", "obstructed" and "too far" end the job with the game's message. Sleeping also
+ * sets the respawn point to the bed.
+ */
+export async function sleepInBed(rt: AgentRuntime, ctx: JobContext, opts: SleepOptions = {}): Promise<string> {
+  const deadline = Date.now() + (opts.maxSeconds ?? 90) * 1000;
+  const self0 = await rt.body.self();
+  const scan = await rt.body.scan({ radius: 1 });
+  let bed: (Pos & { id: string }) | undefined = scan.pois
+    .filter((p) => BED.test(p.id) && distance(p, self0) <= 24)
+    .sort((a, b) => distance(a, self0) - distance(b, self0))[0];
+  if (bed) {
+    ctx.log(`using the ${shortId(bed.id)} at ${fmtPos(bed)}`);
+  } else {
+    const inv = await rt.body.inventory();
+    const item = [...inv.hotbar, ...inv.main].find((i) => BED.test(i.id));
+    if (!item) throw new JobFailure("no bed within 24 blocks and none in the inventory: craft one (3 wool of one colour + 3 planks) or wall yourself in");
+    if (item.slot <= 8) await rt.body.selectHotbar(item.slot);
+    else await rt.body.swapSlots(item.slot, inv.selectedSlot);
+    const fx = Math.floor(self0.x);
+    const fy = Math.floor(self0.y);
+    const fz = Math.floor(self0.z);
+    let why = "";
+    outer: for (const [, dx, dz] of DIRS) {
+      for (const [facing, hx, hz] of DIRS) {
+        const foot = { x: fx + dx, y: fy, z: fz + dz };
+        if (foot.x + hx === fx && foot.z + hz === fz) continue; // the head would be where you stand
+        const r: PlaceAtResult = await rt.body
+          .placeAt(foot, `${item.id}[part=foot,facing=${facing}]`)
+          .catch((e: unknown) => ({ result: e instanceof Error ? e.message : String(e), placed: false }));
+        if (/^(SUCCESS|CONSUME)/.test(r.result)) {
+          bed = { id: item.id, ...foot };
+          ctx.log(`placed ${shortId(item.id)} at ${fmtPos(foot)} facing ${facing}`);
+          break outer;
+        }
+        why = r.result;
+      }
+    }
+    if (!bed) throw new JobFailure(`could not place the bed next to you (${why}): stand on flat open ground with two free blocks in a row and retry`);
+  }
+  const center = { x: bed.x + 0.5, y: bed.y, z: bed.z + 0.5 };
+  if (distance(center, await rt.body.self()) > 2.5) await travel(rt, ctx, bed, { reach: 1.5 });
+
+  let since = (await rt.body.events({ types: ["system_message"], limit: 1 }).catch(() => undefined))?.lastId;
+  let said = "";
+  for (;;) {
+    ctx.checkpoint();
+    await rt.body.lookAt({ x: center.x, y: bed.y + 0.4, z: center.z }).catch(() => undefined);
+    await rt.body.useItem().catch(() => undefined);
+    await ctx.sleep(1500);
+    const ev = await rt.body.events({ types: ["system_message"], ...(since !== undefined ? { sinceId: since } : {}) }).catch(() => undefined);
+    if (ev) {
+      since = ev.lastId;
+      const texts = ev.events.map((e) => String(e.data?.text ?? "")).filter((t) => t && !/respawn point/i.test(t));
+      if (texts.length) said = texts[texts.length - 1]!.slice(0, 120);
+    }
+    // Lying in a bed puts you on its head block, 0.56-0.69 above its base.
+    const s = await rt.body.self();
+    const dy = s.y - bed.y;
+    if (horizontalDistance(s, center) < 1.6 && dy > 0.4 && dy < 0.9) {
+      return `sleeping in the ${shortId(bed.id)} at ${fmtPos(bed)}; the night passes once the server agrees. Stay in bed (do not move) and wait.`;
+    }
+    if (/monsters nearby|obstructed|too far/i.test(said)) throw new JobFailure(`the game says "${said}": deal with it (fight job, wall in, or move the bed) and retry`);
+    if (Date.now() > deadline) throw new JobFailure(`could not lie down${said ? `: the game says "${said}"` : ""}`);
+    ctx.progress(said ? `waiting: ${said}` : "trying the bed");
+    await ctx.sleep(3000);
   }
 }

@@ -349,7 +349,7 @@ claude --dangerously-load-development-channels server:mcpfabric
 **agent runtime** ([docs/AGENT.md](docs/AGENT.md)) — persistent per-world memory, goals, map and background jobs:
 `agent_brief`, `observe`, `map_view`, `surroundings` (mobs, items and places relative to your view), `remember`, `recall`, `memory_update`, `memory_verify`,
 `goal_add`, `goal_update`, `goal_list`, `plan_craft`, `get_recipes`, `explore_next`,
-jobs `travel_to` / `explore` / `collect_blocks` / `craft_item` / `fight` with `job_status` / `job_cancel`,
+jobs `travel_to` / `explore` / `collect_blocks` / `craft_item` / `fight` / `sleep_in_bed` with `job_status` / `job_cancel`,
 `open_container` / `container_transfer` / `close_container`, building from a plan:
 `build_plan`, `build_verify`, `build_structure`; `open_dashboard` shows a live
 panel (position, vitals, job, map, goals, inventory and a STOP button) in hosts that render

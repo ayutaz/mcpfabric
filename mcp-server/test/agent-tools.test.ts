@@ -186,6 +186,18 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.deepEqual(world.mobs.map((m) => m.uuid), ["c1"], "the zombie died, the creeper was left alone");
     assert.ok(!world.calls.includes("attack:c1"));
   },
+  sleep_in_bed: async ({ world, tool }) => {
+    world.give("minecraft:red_bed", 1, 12);
+    const out = await tool("sleep_in_bed", { waitSeconds: 30 });
+    assert.match(out, /\[done\][\s\S]*sleeping in the red_bed at/);
+    assert.equal(world.count("minecraft:red_bed"), 0, "the bed was placed");
+    world.player.y = 64;
+    world.player.x = 0.5;
+    world.player.z = 0.5;
+    world.sleepRefusal = "You may not rest now; there are monsters nearby";
+    const refused = await tool("sleep_in_bed", { waitSeconds: 30 });
+    assert.match(refused, /\[failed\][\s\S]*monsters nearby/);
+  },
   craft_item: async ({ world, tool }) => {
     world.give("minecraft:oak_planks", 2);
     const out = await tool("craft_item", { item: "stick", waitSeconds: 30 });
