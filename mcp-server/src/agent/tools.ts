@@ -785,10 +785,10 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "fight",
     title: "Fight nearby hostile mobs (job)",
     description:
-      "Background job: equip your best sword (or axe), close in on the nearest hostile mob and melee it on the weapon's cooldown, then the next one, until none is left within `radius`. Stops when health falls to `minHealth`. Skips creepers unless `creepers` is true. Use it when a mob is close instead of attacking by hand.",
+      "Background job: equip your best sword (or axe), close in on the nearest hostile mob and melee it on the weapon's cooldown, then the next one, until none is left within `radius`. Stops when health falls to `minHealth`. Skips creepers unless `creepers` is true. With `types` it also hunts those animals (e.g. [\"sheep\"] for wool, [\"cow\"] for food). Use it when a mob is close instead of attacking by hand.",
     inputSchema: {
       radius: z.number().int().min(3).max(32).optional().default(12).describe("Search radius in blocks."),
-      types: z.array(z.string()).optional().describe('Only these mob types, e.g. ["zombie"].'),
+      types: z.array(z.string()).optional().describe('Only these mob types, e.g. ["zombie"]; animals count too, e.g. ["sheep"].'),
       maxSeconds: z.number().int().min(5).max(300).optional().default(60),
       minHealth: z.number().min(1).max(19).optional().default(6),
       creepers: z.boolean().optional().default(false),

@@ -193,6 +193,11 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.match(out, /\[done\][\s\S]*no hostile mobs within 12: 3 hits with stone_sword, 1 target killed or gone/);
     assert.deepEqual(world.mobs.map((m) => m.uuid), ["c1"], "the zombie died, the creeper was left alone");
     assert.ok(!world.calls.includes("attack:c1"));
+    world.mobs.push({ uuid: "s1", type: "minecraft:sheep", x: 3, y: 64, z: 2, health: 8, kind: "passive" });
+    assert.match(await tool("fight", { radius: 12, waitSeconds: 30 }), /no hostile mobs within 12: 0 hits/, "animals are left alone by default");
+    const hunt = await tool("fight", { radius: 12, types: ["sheep"], waitSeconds: 30 });
+    assert.match(hunt, /\[done\][\s\S]*no sheep within 12: 2 hits/);
+    assert.deepEqual(world.mobs.map((m) => m.uuid), ["c1"]);
   },
   sleep_in_bed: async ({ world, tool }) => {
     world.give("minecraft:red_bed", 1, 12);

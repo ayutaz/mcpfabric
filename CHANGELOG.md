@@ -45,6 +45,12 @@ All notable changes to this project are documented here. The format is based on
   received yet as unloaded instead of air.
 - `surroundings` lists each mob's and player's UUID, so `attack_entity` / `use_entity` work in
   multiplayer, where `query_entities` needs a server.
+- `fight` with `types` also hunts those animals (e.g. `["sheep"]` for wool); without `types` it still
+  attacks hostile mobs only.
+- A craft plan for an item without any known recipe says so and why (on a server the client only learns
+  recipes as they unlock) instead of only listing the item itself under `gather`.
+- The `run_script` description no longer suggests `find_blocks` as an example and says that agent tools
+  are not script helpers and that world scans need an integrated server.
 
 ## [0.10.0] - 2026-11-09
 

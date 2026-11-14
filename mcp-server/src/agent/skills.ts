@@ -993,7 +993,8 @@ export async function fight(rt: AgentRuntime, ctx: JobContext, opts: FightOption
       ctx.checkpoint();
       if (Date.now() > deadline) return summary("time limit");
       const self = await vitals(rt, minHealth);
-      const mobs = (await rt.body.entities(radius, ["hostile"]))
+      // Named types may be animals too (sheep for wool, cows for food); without types only hostiles.
+      const mobs = (await rt.body.entities(radius, types ? ["hostile", "passive"] : ["hostile"]))
         .filter((m) => (types ? types.includes(m.type) : true) && (opts.creepers || !/creeper/.test(m.type)))
         .sort((a, b) => a.distance - b.distance);
       if (target && !mobs.some((m) => m.uuid === target!.uuid)) {
@@ -1003,7 +1004,7 @@ export async function fight(rt: AgentRuntime, ctx: JobContext, opts: FightOption
       }
       if (mobs.length === 0) {
         quietSince ||= Date.now();
-        if (Date.now() - quietSince > 1500) return summary(`no hostile mobs within ${radius}`);
+        if (Date.now() - quietSince > 1500) return summary(`no ${types ? types.map(shortId).join("/") : "hostile mobs"} within ${radius}`);
         await ctx.sleep(250);
         continue;
       }

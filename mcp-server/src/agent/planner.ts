@@ -272,6 +272,11 @@ export function formatPlan(p: Plan): string {
   lines.push(`# plan ${shortId(p.target.id)} ×${p.target.count} — ${verdict}`);
   if (Object.keys(p.uses).length > 0) lines.push(`uses from inventory: ${fmtCounts(p.uses)}`);
   if (gatherIds.length > 0) lines.push(`gather: ${fmtCounts(p.gather)}`);
+  if (p.gather[p.target.id] && p.steps.length === 0 && !PREFER_RAW.test(p.target.id)) {
+    lines.push(
+      `no recipe for ${shortId(p.target.id)} is known yet: on a server the client only learns recipes as they unlock, mostly when you hold an ingredient (wooden tools: sticks; stone tools: cobblestone). Craft its ingredients first (e.g. planks, then sticks) and retry.`,
+    );
+  }
   if (p.locked.length > 0) {
     lines.push(`locked recipes (not unlocked yet, recipe book cannot place them): ${p.locked.map(shortId).join(", ")}`);
   }

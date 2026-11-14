@@ -42,6 +42,8 @@ test("knownOnly treats locked recipes as unavailable", () => {
   const p = plan("minecraft:iron_pickaxe", 1, {}, index(vanillaRecipes()), { knownOnly: true });
   assert.deepEqual(p.gather, { "minecraft:iron_pickaxe": 1 });
   assert.deepEqual(p.steps, []);
+  assert.match(formatPlan(p), /no recipe for iron_pickaxe is known yet[\s\S]*Craft its ingredients first/);
+  assert.doesNotMatch(formatPlan(plan("minecraft:oak_log", 2, {}, index(vanillaRecipes()))), /no recipe/, "raw blocks are just gathered");
 });
 
 test("cycles (ingot ↔ block ↔ nugget) terminate", () => {
