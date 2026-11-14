@@ -202,6 +202,38 @@ test("job manager: one job at a time, cancel, wait", async () => {
   assert.equal((await jobs.wait(quick.id, 1000))!.result, "ok");
 });
 
+test("job manager: a watched wait wakes early and leaves the job running", async () => {
+  const jobs = new JobManager();
+  const job = jobs.start("wait", "sleep", (ctx) => ctx.sleep(10_000).then(() => "slept"));
+  let polls = 0;
+  const t0 = Date.now();
+  const r = await jobs.waitWatched(job.id, 5000, undefined, async () => (++polls >= 2 ? "damaged" : undefined), 20);
+  assert.equal(r.woke, "damaged");
+  assert.ok(Date.now() - t0 < 2000);
+  assert.equal(r.job!.state, "running");
+  await jobs.cancel();
+  const quick = jobs.start("quick", "q", async () => "ok");
+  const q = await jobs.waitWatched(quick.id, 1000, undefined, async () => "damaged", 20);
+  assert.equal(q.woke, undefined); // finished before the first poll: no wake-up to report
+  assert.equal(q.job!.result, "ok");
+});
+
+test("with reflexes on, a tool blocking on a job returns when the player is hurt", async () => {
+  const { world, tool } = setup();
+  world.reflexes = true;
+  world.unreachable = new Set(Array.from({ length: 400 }, (_, i) => i).flatMap((i) => [`${i},64,0`]));
+  const hurt = setTimeout(() => (world.player.health = 13), 1200);
+  const t0 = Date.now();
+  const out = await tool("travel_to", { x: -200, z: 500, waitSeconds: 30 });
+  clearTimeout(hurt);
+  assert.ok(Date.now() - t0 < 10_000);
+  assert.match(out, /\[running\]/);
+  assert.match(out, /woke early: damaged \(health 20 → 13\)/);
+  world.player.health = 20;
+  assert.match(await tool("job_status", { waitSeconds: 1 }), /\[running\]/); // no new danger: plain timeout
+  assert.match(await tool("job_cancel"), /cancelled job/);
+});
+
 test("job manager: jobs belong to their session; closing it cancels the job", async () => {
   const jobs = new JobManager();
   const job = jobs.start("wait", "sleep", (ctx) => ctx.sleep(10_000).then(() => "slept"), "a");

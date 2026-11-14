@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { BridgeError, BridgeUnreachableError } from "../bridge.js";
 import type { Bridge } from "../agent/body.js";
+import { dangerCheck, type DangerState } from "../agent/danger.js";
 import type { AgentRuntime } from "../agent/runtime.js";
 import { OVERWRITE, READ, TOOLS, type ToolAnnotations, type ToolDef } from "../tools.js";
 import { compileScript, DEFAULT_LIMITS, HostError, MAX_CODE_CHARS, MAX_TIMEOUT_MS, runScript, type ScriptLimits, type ScriptRun } from "./sandbox.js";
@@ -149,17 +150,8 @@ export interface ScriptToolDef {
  * or runs low on air, so a script waiting out the night does not sleep through an attack.
  */
 export function sleepWatch(bridge: Bridge): () => Promise<string | undefined> {
-  let last: number | undefined;
-  return async () => {
-    const s = (await bridge.call("player.getState")) as { health?: number; air?: number; maxAir?: number } | undefined;
-    if (!s || typeof s.health !== "number") return undefined;
-    if (s.health <= 0) return "dead";
-    const prev = last;
-    last = s.health;
-    if (prev !== undefined && s.health < prev) return "damaged";
-    if (typeof s.air === "number" && typeof s.maxAir === "number" && s.maxAir > 0 && s.air < s.maxAir / 3) return "low_air";
-    return undefined;
-  };
+  const check = dangerCheck(() => bridge.call("player.getState") as Promise<DangerState | undefined>);
+  return async () => (await check())?.reason;
 }
 
 /** Compact report of a run, for model context. */

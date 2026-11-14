@@ -7,6 +7,7 @@ import { join } from "node:path";
 
 import { BridgeError } from "../bridge.js";
 import { Body, type Bridge, type ScanResult, type SelfState } from "./body.js";
+import { dangerCheck, formatDanger } from "./danger.js";
 import { KeyValue, openDatabase, requireSqlite, type Database } from "./db.js";
 import type { Located } from "./format.js";
 import { GoalStore } from "./goals.js";
@@ -53,8 +54,10 @@ export class AgentRuntime {
 
   /** Whether the script tools are served alongside the runtime. */
   readonly scripts: boolean;
+  /** The mod's `reflexes` flag, once read successfully. */
+  private reflexes?: boolean;
 
-  constructor(bridge: Bridge, private readonly opts: RuntimeOptions) {
+  constructor(private readonly bridge: Bridge, private readonly opts: RuntimeOptions) {
     requireSqlite();
     this.scripts = opts.scripts ?? true;
     this.body = new Body(bridge);
@@ -113,6 +116,32 @@ export class AgentRuntime {
       }
     }
     return this.worldCache.id;
+  }
+
+  /** Whether the mod's `reflexes` are on; asked once, retried while the bridge cannot answer. */
+  async reflexesOn(): Promise<boolean> {
+    if (this.reflexes !== undefined) return this.reflexes;
+    try {
+      const caps = (await this.bridge.call("info.capabilities")) as { reflexes?: unknown } | undefined;
+      this.reflexes = caps?.reflexes === true;
+    } catch {
+      return false;
+    }
+    return this.reflexes;
+  }
+
+  /**
+   * With `reflexes` on, a check for a tool blocking on a job of `kind`: it reports death, damage
+   * (not during a fight, where it is expected) and low air, so the wait ends and the model can react.
+   * Undefined when reflexes are off: the wait is then the plain timeout.
+   */
+  async jobWatch(kind: string): Promise<(() => Promise<string | undefined>) | undefined> {
+    if (!(await this.reflexesOn())) return undefined;
+    const check = dangerCheck(() => this.body.self(), { ignoreDamage: kind === "fight" });
+    return async () => {
+      const d = await check();
+      return d && formatDanger(d);
+    };
   }
 
   /** Forget the cached world id (e.g. after the player switched worlds). */

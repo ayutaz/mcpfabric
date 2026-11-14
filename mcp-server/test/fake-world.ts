@@ -45,6 +45,8 @@ export class FakeWorld implements Bridge {
   lineOfSight = false;
   /** The player lies in a bed (player.getState `sleeping`). */
   sleeping = false;
+  /** What info.capabilities reports as the mod's `reflexes` flag. */
+  reflexes = false;
   private seq = 0;
   open: { type: string; pos?: P; grid?: { result: { id: string; count: number } | null } } | null = null;
 
@@ -117,6 +119,8 @@ export class FakeWorld implements Bridge {
   private handle(method: string, a: Record<string, any>): unknown {
     const p = this.player;
     switch (method) {
+      case "info.capabilities":
+        return { reflexes: this.reflexes };
       case "session.info":
         return { worldId: this.worldId, kind: "singleplayer", name: "test" };
       case "player.getState":

@@ -222,13 +222,38 @@ export class JobManager {
 
   /** Wait until the job ends or `timeoutMs` passes, whichever is first. */
   async wait(id: number | undefined, timeoutMs: number, owner?: string): Promise<Job | undefined> {
+    return (await this.waitWatched(id, timeoutMs, owner)).job;
+  }
+
+  /**
+   * {@link wait}, but `watch` is polled every `pollMs` meanwhile and the first non-empty answer ends
+   * the wait early as `woke` (the job keeps running). A failing poll counts as nothing to report.
+   */
+  async waitWatched(
+    id: number | undefined,
+    timeoutMs: number,
+    owner?: string,
+    watch?: () => Promise<string | undefined>,
+    pollMs = 500,
+  ): Promise<{ job?: Job; woke?: string }> {
     const cur = this.current;
+    let woke: string | undefined;
     if (cur && (id === undefined || cur.job.id === id) && visibleTo(cur.job, owner) && timeoutMs > 0) {
-      let timer: NodeJS.Timeout | undefined;
-      await Promise.race([cur.done, new Promise<void>((r) => (timer = setTimeout(r, timeoutMs)))]);
-      clearTimeout(timer);
+      let ended = false;
+      const done = cur.done.then(() => void (ended = true));
+      const end = Date.now() + timeoutMs;
+      for (let left = timeoutMs; left > 0 && !ended; left = end - Date.now()) {
+        let timer: NodeJS.Timeout | undefined;
+        const step = watch ? Math.min(pollMs, left) : left;
+        await Promise.race([done, new Promise<void>((r) => (timer = setTimeout(r, step)))]);
+        clearTimeout(timer);
+        if (ended || !watch || Date.now() >= end) continue;
+        woke = await watch().catch(() => undefined);
+        if (woke) break;
+      }
+      if (ended) woke = undefined; // the job finished: its result says what happened
     }
-    return this.get(id, owner);
+    return { job: this.get(id, owner), woke };
   }
 }
 

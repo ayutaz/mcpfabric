@@ -29,7 +29,9 @@ All notable changes to this project are documented here. The format is based on
   navigation is cancelled (`low_air`) so it does not keep pathing along the bottom. `break_block` in survival
   refuses (`unsafe_dig_fluid`) to break a block in the player's own column within 3 blocks below the feet
   when water or lava touches it, unless `allowFluid` is set. A script's `mc.sleep` longer than 0.5 s wakes
-  early on death, damage or low air and resolves to `"dead"`, `"damaged"` or `"low_air"`.
+  early on death, damage or low air and resolves to `"dead"`, `"damaged"` or `"low_air"`. A job tool's
+  `waitSeconds` and `job_status` likewise return early (`woke early: damaged (health 20 → 13)`; damage is
+  ignored during `fight`) and leave the job running.
   `player.getState` reports `reflex` (`swim_up` or null) and `reflexSwimTicks`; `info.capabilities` reports
   `reflexes`.
 - Respawn shelter reflex (with `reflexes` on): after a respawn at night the bot walks to dry ground within

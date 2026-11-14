@@ -62,7 +62,9 @@ const waitSeconds = z
   .min(0)
   .max(50)
   .optional()
-  .describe("Block up to this many seconds for the job to finish before returning (default 0: return at once).");
+  .describe(
+    "Block up to this many seconds for the job to finish before returning (default 0: return at once). With the mod's reflexes on, returns early on death, damage or low air.",
+  );
 
 const planKey = (name: string) => `build.plan.${name}`;
 
@@ -101,9 +103,27 @@ async function startJob(
   run: (ctx: JobContext) => Promise<string>,
 ): Promise<string> {
   const job = rt.jobs.start(kind, summary, run, session.id);
-  const done = wait ? await rt.jobs.wait(job.id, wait * 1000, session.id) : job;
-  const text = formatJob(done ?? job);
-  return (done ?? job).state === "running" ? `${text}\n(poll job_status to follow it; job_cancel stops it)` : text;
+  if (!wait) return `${formatJob(job)}\n${FOLLOW}`;
+  return (await waitText(rt, session, job.id, wait, kind)) ?? formatJob(job);
+}
+
+const FOLLOW = "(poll job_status to follow it; job_cancel stops it)";
+
+/** Block on a job, waking early on danger when the mod's reflexes are on, and describe it. */
+async function waitText(
+  rt: AgentRuntime,
+  session: AgentSession,
+  id: number | undefined,
+  wait: number,
+  kind?: string,
+): Promise<string | undefined> {
+  const k = kind ?? rt.jobs.get(id, session.id)?.kind ?? "";
+  const watch = wait > 0 ? await rt.jobWatch(k) : undefined;
+  const { job, woke } = await rt.jobs.waitWatched(id, wait * 1000, session.id, watch);
+  if (!job) return undefined;
+  const text = formatJob(job);
+  if (woke) return `${text}\nwoke early: ${woke}. The job is still running: deal with it (fight, flee, eat, job_cancel) or job_status to keep waiting.`;
+  return job.state === "running" ? `${text}\n${FOLLOW}` : text;
 }
 
 export function markersFor(memories: Memory[]): MapMarker[] {
@@ -811,15 +831,16 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   {
     name: "job_status",
     title: "Job status",
-    description: "Status, progress and log of the running (or last) job. Waits up to waitSeconds for it to finish first.",
+    description:
+      "Status, progress and log of the running (or last) job. Waits up to waitSeconds for it to finish first; with the mod's reflexes on, the wait ends early on death, damage or low air.",
     inputSchema: {
       id: z.number().int().optional(),
       waitSeconds: z.number().min(0).max(50).optional().default(20),
     },
     annotations: READ,
     run: async (rt, session, args) => {
-      const job = await rt.jobs.wait(args.id, args.waitSeconds * 1000, session.id);
-      if (job) return formatJob(job);
+      const text = await waitText(rt, session, args.id, args.waitSeconds);
+      if (text) return text;
       return rt.jobs.running() ? "no job of this session; another MCP session is running one" : "no jobs yet";
     },
   },
