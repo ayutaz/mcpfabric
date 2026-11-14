@@ -199,7 +199,9 @@ from the eye to one of their faces, so buried ores and hidden chests stay hidden
 the model: under water the bot swims up, and below a third of its air it cancels navigation. In survival,
 `break_block` then refuses (`unsafe_dig_fluid`) to dig out the block under the player's feet (its own column,
 up to 3 blocks down) when water or lava touches it; pass `allowFluid: true` to dig anyway. A script's
-`mc.sleep` wakes early on death, damage or low air.
+`mc.sleep` wakes early on death, damage or low air. After a respawn at night, the bot digs itself into a
+sealed hole on dry ground nearby and waits for morning; movement commands are refused (`reflex_shelter`)
+until it ends at dawn, or when the player is hurt down to low health in the hole.
 
 The `enable*` flags let you switch off dangerous capability groups. `enableUiControl` is the one
 that starts off: it lets the model click buttons and type into text fields of game screens

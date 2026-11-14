@@ -27,6 +27,7 @@ public final class NavHandlers {
 	public static void register(RpcRouter router) {
 		router.register("nav.pathTo", ctx -> ClientMc.call(() -> {
 			Gates.playerControl();
+			BotController.get().requireNoReflex();
 			LocalPlayer p = ClientMc.player();
 			ClientLevel level = ClientMc.level();
 			BlockPos start = p.blockPosition();

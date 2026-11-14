@@ -32,6 +32,15 @@ All notable changes to this project are documented here. The format is based on
   early on death, damage or low air and resolves to `"dead"`, `"damaged"` or `"low_air"`.
   `player.getState` reports `reflex` (`swim_up` or null) and `reflexSwimTicks`; `info.capabilities` reports
   `reflexes`.
+- Respawn shelter reflex (with `reflexes` on): after a respawn at night the bot walks to dry ground within
+  12 blocks and up to 14 blocks below (down from a tree canopy; never beside water or lava), digs three
+  blocks straight down, seals the top with a dug block and waits until morning. Meanwhile
+  `control.setInput`, `control.jumpOnce`, `nav.pathTo` and survival `break_block` are refused
+  (`reflex_shelter`). A hit in the hole re-seals an open top; the reflex ends at dawn, when the player is
+  hurt down to 8 health, or when a step fails, and reports its start, sealing and end as `reflex_shelter`
+  events. `player.getState` reports `reflex: "shelter_<phase>"`, `reflexShelters` and `reflexShelterResult`.
+- The client navigation world treats the empty placeholder chunks the client returns for chunks it has not
+  received yet as unloaded instead of air.
 - `surroundings` lists each mob's and player's UUID, so `attack_entity` / `use_entity` work in
   multiplayer, where `query_entities` needs a server.
 

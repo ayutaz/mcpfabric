@@ -18,6 +18,7 @@ import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.EmptyLevelChunk;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -57,7 +58,10 @@ public final class LevelNavWorld implements NavWorld {
 	}
 
 	private NavCell classify(BlockPos pos) {
-		if (level.isOutsideBuildHeight(pos.getY()) || !level.hasChunkAt(pos)) return NavCell.UNKNOWN;
+		// The client answers an empty placeholder chunk (all air) for chunks it has not received yet.
+		if (level.isOutsideBuildHeight(pos.getY()) || !level.hasChunkAt(pos) || level.getChunk(pos) instanceof EmptyLevelChunk) {
+			return NavCell.UNKNOWN;
+		}
 		BlockState s = level.getBlockState(pos);
 		FluidState fluid = s.getFluidState();
 		if (fluid.is(FluidTags.LAVA)) return NavCell.LAVA;

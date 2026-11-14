@@ -16,6 +16,7 @@ public final class ControlHandlers {
 	public static void register(RpcRouter router) {
 		router.register("control.setInput", ctx -> {
 			Gates.playerControl();
+			BotController.get().requireNoReflex();
 			BotController.get().setMovement(
 					ctx.optBoolean("forward"),
 					ctx.optBoolean("back"),
@@ -34,6 +35,7 @@ public final class ControlHandlers {
 
 		router.register("control.jumpOnce", ctx -> {
 			Gates.playerControl();
+			BotController.get().requireNoReflex();
 			BotController.get().jumpOnce();
 			return Json.ok("jump");
 		});

@@ -2,6 +2,7 @@ package dev.mcpfabric.client;
 
 import com.google.gson.JsonObject;
 import dev.mcpfabric.McpFabric;
+import dev.mcpfabric.bridge.RpcException;
 import dev.mcpfabric.client.handlers.InteractHandlers;
 import dev.mcpfabric.client.nav.LevelNavWorld;
 import dev.mcpfabric.nav.NavPlanner;
@@ -50,6 +51,15 @@ public final class BotController {
 	/** Reflex (config {@code reflexes}): the head is under water, so jump is held to swim up. */
 	private boolean reflexSwim;
 	private long reflexSwimTicks;
+	/** Reflex: digs in after a respawn at night (see {@link ShelterReflex}). */
+	private final ShelterReflex shelter = new ShelterReflex(this);
+	private LocalPlayer lastPlayer;
+	private boolean lastDead;
+	/** The running navigation belongs to the shelter reflex: the low-air stop leaves it alone. */
+	private boolean reflexNav;
+	/** The current mining belongs to the shelter reflex: its result goes there, not to an event. */
+	private boolean reflexMining;
+	private String reflexMiningResult;
 
 	// survival mining
 	/** Extra ticks allowed beyond a block's expected break time before mining is given up. */
@@ -120,6 +130,7 @@ public final class BotController {
 
 	public synchronized void startMining(BlockPos pos, Direction face) {
 		this.navMining = false;
+		this.reflexMining = false;
 		this.miningPos = pos;
 		this.miningFace = face;
 		this.miningTicks = 0;
@@ -142,7 +153,13 @@ public final class BotController {
 		this.stuckTicks = 0;
 		this.ticksWithoutProgress = 0;
 		this.navState = "navigating";
+		this.reflexNav = false;
 		resetStep();
+	}
+
+	/** Refuses a movement command from the bridge while the shelter reflex runs. */
+	public synchronized void requireNoReflex() throws RpcException {
+		if (shelter.active()) throw new RpcException("reflex_shelter", shelter.refusal());
 	}
 
 	public synchronized void stopNavigation(String reason) {
@@ -183,10 +200,22 @@ public final class BotController {
 		}
 
 		synchronized (this) {
-			reflexSwim = McpFabric.config().reflexes && p.isUnderWater() && !p.isPassenger();
+			boolean reflexes = McpFabric.config().reflexes;
+			if (p != lastPlayer) {
+				// The client makes a new player on respawn: after a death, that is the respawn.
+				if (reflexes && lastPlayer != null && lastDead) shelter.onRespawn();
+				lastPlayer = p;
+			}
+			lastDead = p.isDeadOrDying();
+			if (reflexes) {
+				shelter.tick(mc, p);
+			} else {
+				shelter.cancel("off");
+			}
+			reflexSwim = reflexes && p.isUnderWater() && !p.isPassenger();
 			if (reflexSwim) {
 				reflexSwimTicks++;
-				if (path != null && p.getAirSupply() < p.getMaxAirSupply() / 3) {
+				if (path != null && !reflexNav && p.getAirSupply() < p.getMaxAirSupply() / 3) {
 					stopNavigationInternal("low_air"); // surface first; the caller can path again afterwards
 				}
 			}
@@ -272,6 +301,12 @@ public final class BotController {
 
 	/** Ends survival mining and reports the outcome as a {@code mining_finished} event (see poll_events). */
 	private void finishMining(String result) {
+		if (reflexMining) {
+			reflexMining = false;
+			reflexMiningResult = result;
+			miningPos = null;
+			return;
+		}
 		if (navMining) {
 			navMining = false;
 			navMiningResult = result;
@@ -555,10 +590,14 @@ public final class BotController {
 	}
 
 	private static void lookAt(LocalPlayer p, BlockPos pos) {
+		lookAt(p, Vec3.atCenterOf(pos));
+	}
+
+	static void lookAt(LocalPlayer p, Vec3 point) {
 		Vec3 eye = p.getEyePosition();
-		double dx = pos.getX() + 0.5 - eye.x;
-		double dy = pos.getY() + 0.5 - eye.y;
-		double dz = pos.getZ() + 0.5 - eye.z;
+		double dx = point.x - eye.x;
+		double dy = point.y - eye.y;
+		double dz = point.z - eye.z;
 		face(p, dx, dz);
 		p.setXRot((float) -(Mth.atan2(dy, Math.sqrt(dx * dx + dz * dz)) * (180.0 / Math.PI)));
 	}
@@ -583,7 +622,7 @@ public final class BotController {
 		return best;
 	}
 
-	private static int throwawaySlot(LocalPlayer p) {
+	static int throwawaySlot(LocalPlayer p) {
 		int selected = selectedSlot(p);
 		if (LevelNavWorld.throwaway(p.getInventory().getItem(selected))) return selected;
 		for (int slot = 0; slot < 9; slot++) {
@@ -599,16 +638,93 @@ public final class BotController {
 		/*return p.getInventory().selected;*/
 	}
 
-	private static void selectSlot(LocalPlayer p, int slot) {
+	static void selectSlot(LocalPlayer p, int slot) {
 		//? if >=1.21.5 {
 		p.getInventory().setSelectedSlot(slot);
 		//?} else
 		/*p.getInventory().selected = slot;*/
 	}
 
-	/** Reflex state for {@code player.getState}: "swim_up" while the swim reflex holds jump, else null. */
+	/**
+	 * Reflex state for {@code player.getState}: {@code shelter_<phase>} while the shelter reflex runs,
+	 * "swim_up" while the swim reflex holds jump, else null.
+	 */
 	public synchronized String reflexState() {
-		return reflexSwim ? "swim_up" : null;
+		String s = shelter.state();
+		return s != null ? s : reflexSwim ? "swim_up" : null;
+	}
+
+	/** Times the shelter reflex sealed the player in since the client started. */
+	public synchronized long reflexShelters() {
+		return shelter.sealedCount();
+	}
+
+	/** How the last shelter reflex ended ("morning", "damaged", "no_site", ...), or null. */
+	public synchronized String reflexShelterResult() {
+		return shelter.lastResult();
+	}
+
+	// --- for ShelterReflex (called on the client tick, under this lock) ---------------------
+
+	void reflexNavigate(List<NavPlanner.Step> path, BlockPos start, BlockPos target, long deadlineMillis) {
+		startNavigation(path, start, target, 0.35, false, deadlineMillis);
+		reflexNav = true;
+	}
+
+	boolean navigating() {
+		return path != null;
+	}
+
+	void reflexMine(Minecraft mc, LocalPlayer p, BlockPos pos) {
+		BlockState state = mc.level.getBlockState(pos);
+		selectSlot(p, bestTool(p, state));
+		lookAt(p, pos);
+		mc.gameMode.startDestroyBlock(pos, Direction.UP);
+		InteractHandlers.swingAttack(p);
+		navMining = false;
+		reflexMining = true;
+		reflexMiningResult = null;
+		miningPos = pos;
+		miningFace = Direction.UP;
+		miningTicks = 0;
+	}
+
+	boolean reflexMiningBusy() {
+		return reflexMining && miningPos != null;
+	}
+
+	String takeReflexMiningResult() {
+		String r = reflexMiningResult;
+		reflexMiningResult = null;
+		return r;
+	}
+
+	void reflexHold(LocalPlayer p) {
+		fwd = back = left = right = jumpHeld = sneak = sprint = false;
+		jumpOnceTicks = 0;
+		navJump = false;
+	}
+
+	/** Creeps (sneaking, so it cannot fall off an edge) along (dx, dz). */
+	void reflexWalk(LocalPlayer p, double dx, double dz) {
+		reflexHold(p);
+		face(p, dx, dz);
+		fwd = true;
+		sneak = true;
+	}
+
+	/** The shelter reflex ended: stop what it was driving. */
+	void reflexRelease() {
+		if (reflexNav && path != null) stopNavigationInternal("reflex_ended");
+		reflexNav = false;
+		if (reflexMining && miningPos != null) {
+			Minecraft mc = Minecraft.getInstance();
+			if (mc.gameMode != null) mc.gameMode.stopDestroyBlock();
+			miningPos = null;
+		}
+		reflexMining = false;
+		reflexMiningResult = null;
+		fwd = back = left = right = jumpHeld = sneak = sprint = false;
 	}
 
 	/** Client ticks the swim reflex has held jump since the client started. */
@@ -622,6 +738,7 @@ public final class BotController {
 
 	private void stopNavigationInternal(String reason) {
 		path = null;
+		reflexNav = false;
 		navState = reason;
 		fwd = false;
 		sprint = false;

@@ -60,6 +60,7 @@ public final class InteractHandlers {
 			if (!"instant".equals(mode)) {
 				return ClientMc.call(() -> {
 					requireControl();
+					BotController.get().requireNoReflex();
 					MultiPlayerGameMode gm = ClientMc.gameMode();
 					LocalPlayer p = ClientMc.player();
 					if (McpFabric.config().reflexes && !allowFluid && floodsFromBelow(p, pos)) {
