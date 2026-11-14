@@ -1068,7 +1068,8 @@ async function placeBedNextTo(rt: AgentRuntime, ctx: JobContext, id: string, fx:
         ctx.log(`placed ${shortId(id)} at ${fmtPos(foot)} facing ${facing}`);
         return { bed: { id, ...foot }, why: "" };
       }
-      why = r.result;
+      // A wall answers OCCUPIED; the answer for a free cell says more about why the bed did not go in.
+      if (!why || /^OCCUPIED/.test(why)) why = r.result;
     }
   }
   return { why };
@@ -1155,14 +1156,19 @@ export async function sleepInBed(rt: AgentRuntime, ctx: JobContext, opts: SleepO
     const inv = await rt.body.inventory();
     const item = [...inv.hotbar, ...inv.main].find((i) => BED.test(i.id));
     if (!item) throw new JobFailure("no bed within 24 blocks and none in the inventory: craft one (3 wool of one colour + 3 planks) or wall yourself in");
+    const bedSlot = item.slot <= 8 ? item.slot : inv.selectedSlot;
     if (item.slot <= 8) await rt.body.selectHotbar(item.slot);
     else await rt.body.swapSlots(item.slot, inv.selectedSlot);
     const fx = Math.floor(self0.x);
     const fy = Math.floor(self0.y);
     const fz = Math.floor(self0.z);
     let placed = await placeBedNextTo(rt, ctx, item.id, fx, fy, fz);
-    // In a dug shelter or a tunnel there is no room: dig a bed-sized space beside you and try again.
-    if (!placed.bed && (await makeRoomForBed(rt, ctx, fx, fy, fz))) placed = await placeBedNextTo(rt, ctx, item.id, fx, fy, fz);
+    // In a dug shelter or a tunnel there is no room: dig a bed-sized space beside you and try again,
+    // with the bed back in hand (digging selects the best tool).
+    if (!placed.bed && (await makeRoomForBed(rt, ctx, fx, fy, fz))) {
+      await rt.body.selectHotbar(bedSlot);
+      placed = await placeBedNextTo(rt, ctx, item.id, fx, fy, fz);
+    }
     bed = placed.bed;
     if (!bed) throw new JobFailure(`could not place the bed next to you (${placed.why}): stand on flat open ground with two free blocks in a row and retry`);
   }

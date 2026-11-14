@@ -240,6 +240,16 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.match(dug, /no bed room to the north: water or lava[\s\S]*digging a bed-sized space \(4 blocks\)[\s\S]*placed white_bed at 0 64 1 facing south/);
     assert.equal(hole.world.count("minecraft:white_bed"), 0, "the bed was placed");
     assert.ok(hole.world.blocks.has("0,66,0"), "the roof over the hole stays");
+    // A stone hole is dug with the pickaxe: the bed goes back in hand before it is placed.
+    const stone = setup();
+    for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) for (let y = 64; y <= 66; y++) {
+      if (x !== 0 || z !== 0 || y === 66) stone.world.set({ x, y, z }, "minecraft:stone");
+    }
+    stone.world.give("minecraft:stone_pickaxe", 1, 1);
+    stone.world.give("minecraft:white_bed", 1, 3);
+    const picked = await stone.tool("sleep_in_bed", { waitSeconds: 50 });
+    assert.match(picked, /\[done\][\s\S]*digging a bed-sized space \(4 blocks\)[\s\S]*placed white_bed at/);
+    assert.equal(stone.world.count("minecraft:white_bed"), 0, "the bed was placed");
   },
   craft_item: async ({ world, tool }) => {
     world.give("minecraft:oak_planks", 2);
