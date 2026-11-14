@@ -82,7 +82,7 @@ that need them. It reads `perception.entities` and `perception.scan`, so it need
 
 ## Jobs
 
-`travel_to`, `explore`, `collect_blocks`, `craft_item` and `build_structure` start background jobs and return at once.
+`travel_to`, `explore`, `collect_blocks`, `craft_item`, `fight` and `build_structure` start background jobs and return at once.
 You can also pass `waitSeconds` to block for a while. Follow a job with `job_status`, which
 long-polls, and stop it with `job_cancel`. Only one job runs at a time, because there is one body.
 A job belongs to the MCP session that started it: other sessions cannot see or cancel it, and

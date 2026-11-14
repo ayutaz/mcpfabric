@@ -923,3 +923,102 @@ export async function buildStructure(rt: AgentRuntime, ctx: JobContext, plan: Pl
   const failed = failures.length ? [`failed (${failures.length}): ${failures.slice(0, 12).join(" · ")}${failures.length > 12 ? ` +${failures.length - 12} more` : ""}`] : [];
   return [head, ...failed, text].join("\n");
 }
+
+// ----- fight ------------------------------------------------------------------------------------
+
+export interface FightOptions {
+  radius?: number;
+  types?: string[];
+  maxSeconds?: number;
+  minHealth?: number;
+  creepers?: boolean;
+}
+
+/** Weapons in order of preference, with the attack cooldown (ms) that gives a full-strength hit. */
+const WEAPONS: [RegExp, number][] = [
+  [/^minecraft:netherite_sword$/, 650],
+  [/^minecraft:diamond_sword$/, 650],
+  [/^minecraft:iron_sword$/, 650],
+  [/^minecraft:stone_sword$/, 650],
+  [/^minecraft:(golden|wooden)_sword$/, 650],
+  [/^minecraft:(netherite|diamond|iron)_axe$/, 1050],
+  [/^minecraft:(stone|golden|wooden)_axe$/, 1300],
+];
+
+/**
+ * Melee the nearest hostile mobs until none is left in the radius: equip the best sword or axe,
+ * close in with path-finding, and swing on the weapon's cooldown. Stops when health gets low.
+ * Creepers are skipped unless asked for (a hit does not stop their fuse).
+ */
+export async function fight(rt: AgentRuntime, ctx: JobContext, opts: FightOptions = {}): Promise<string> {
+  const radius = opts.radius ?? 12;
+  const minHealth = opts.minHealth ?? 6;
+  const deadline = Date.now() + (opts.maxSeconds ?? 60) * 1000;
+  const types = opts.types?.map(fullId);
+
+  const inv = await rt.body.inventory();
+  let cooldown = 300; // bare hand
+  let weapon = "bare hand";
+  for (const [re, ms] of WEAPONS) {
+    const it = [...inv.hotbar, ...inv.main].find((i) => re.test(i.id));
+    if (!it) continue;
+    if (it.slot <= 8) await rt.body.selectHotbar(it.slot);
+    else await rt.body.swapSlots(it.slot, inv.selectedSlot);
+    cooldown = ms;
+    weapon = shortId(it.id);
+    break;
+  }
+  ctx.log(`weapon: ${weapon}`);
+
+  let hits = 0;
+  let gone = 0;
+  let target: NearbyEntity | undefined;
+  let lastHit = 0;
+  let lastPath = 0;
+  let quietSince = 0;
+  const summary = (why: string) => `${why}: ${hits} hit${hits === 1 ? "" : "s"} with ${weapon}, ${gone} target${gone === 1 ? "" : "s"} killed or gone`;
+  try {
+    for (;;) {
+      ctx.checkpoint();
+      if (Date.now() > deadline) return summary("time limit");
+      const self = await vitals(rt, minHealth);
+      const mobs = (await rt.body.entities(radius, ["hostile"]))
+        .filter((m) => (types ? types.includes(m.type) : true) && (opts.creepers || !/creeper/.test(m.type)))
+        .sort((a, b) => a.distance - b.distance);
+      if (target && !mobs.some((m) => m.uuid === target!.uuid)) {
+        gone++;
+        ctx.log(`${shortId(target.type)} killed or out of range`);
+        target = undefined;
+      }
+      if (mobs.length === 0) {
+        quietSince ||= Date.now();
+        if (Date.now() - quietSince > 1500) return summary(`no hostile mobs within ${radius}`);
+        await ctx.sleep(250);
+        continue;
+      }
+      quietSince = 0;
+      const m = target ? (mobs.find((x) => x.uuid === target!.uuid) ?? mobs[0]) : mobs[0];
+      target = m;
+      ctx.progress(`${shortId(m.type)}${m.health !== undefined ? ` ${m.health.toFixed(0)}hp` : ""} at ${fmtDistance(m.distance)} · health ${self.health.toFixed(0)}`);
+      if (m.distance > 2.9) {
+        if (Date.now() - lastPath > 800) {
+          lastPath = Date.now();
+          await rt.body.pathTo(m, { reachRadius: 2, sprint: true, timeoutSeconds: 5 }).catch(() => undefined);
+        }
+        await ctx.sleep(150);
+        continue;
+      }
+      await rt.body.lookAt({ x: m.x, y: m.y + 1.2, z: m.z }).catch(() => undefined);
+      if (Date.now() - lastHit >= cooldown) {
+        const r = await rt.body.attack(m.uuid).catch(() => ({ ok: false }));
+        if (r.ok !== false) {
+          hits++;
+          lastHit = Date.now();
+        }
+      }
+      await ctx.sleep(100);
+    }
+  } finally {
+    await rt.body.navStop().catch(() => undefined);
+  }
+}

@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- `fight` agent job: equips the best sword or axe, closes in on the nearest hostile mob and swings on
+  the weapon's cooldown until none is left in the radius; stops at low health and skips creepers
+  unless asked.
+- `surroundings` lists each mob's and player's UUID, so `attack_entity` / `use_entity` work in
+  multiplayer, where `query_entities` needs a server.
+
 ## [0.10.0] - 2026-11-09
 
 Fabric and NeoForge. 0.9.1 was never published; its fix ships here.

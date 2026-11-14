@@ -76,7 +76,7 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     world.set({ x: 0, y: 64, z: -4 }, "minecraft:crafting_table");
     const out = await tool("surroundings", { radius: 16 });
     assert.match(out, /^facing south at 1 64 1 · on ground/);
-    assert.match(out, /hostile:\n  zombie 20hp: 5 ahead, 3 left · 5\.8 m \(11 o'clock\) · 4 64 6/);
+    assert.match(out, /hostile:\n  zombie 20hp: 5 ahead, 3 left · 5\.8 m \(11 o'clock\) · 4 64 6 · uuid z1$/m);
     assert.match(out, /places:\n  crafting_table: 5 behind, 1 right · 4\.5 m \(6 o'clock\) · 0 64 -4/);
   },
   // memory
@@ -176,6 +176,15 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     const out = await tool("collect_blocks", { blocks: ["oak_log"], count: 1, waitSeconds: 30 });
     assert.match(out, /\[done\][\s\S]*broke 1\/1 oak_log; inventory \+oak_log×1/);
     assert.equal(world.count("minecraft:oak_log"), 1);
+  },
+  fight: async ({ world, tool }) => {
+    world.give("minecraft:stone_sword", 1, 3);
+    world.mobs.push({ uuid: "z1", type: "minecraft:zombie", x: 2, y: 64, z: 1, health: 20 });
+    world.mobs.push({ uuid: "c1", type: "minecraft:creeper", x: 6, y: 64, z: 1, health: 20 });
+    const out = await tool("fight", { radius: 12, waitSeconds: 30 });
+    assert.match(out, /\[done\][\s\S]*no hostile mobs within 12: 3 hits with stone_sword, 1 target killed or gone/);
+    assert.deepEqual(world.mobs.map((m) => m.uuid), ["c1"], "the zombie died, the creeper was left alone");
+    assert.ok(!world.calls.includes("attack:c1"));
   },
   craft_item: async ({ world, tool }) => {
     world.give("minecraft:oak_planks", 2);

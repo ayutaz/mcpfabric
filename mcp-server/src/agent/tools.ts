@@ -30,7 +30,7 @@ import { formatMemory, MEMORY_KINDS, MEMORY_STATUSES, SentLedger, type Memory, t
 import { formatObserveReport } from "./observe.js";
 import { collectRecipes, formatPlan, plan } from "./planner.js";
 import type { AgentRuntime } from "./runtime.js";
-import { buildStructure, collect, containerItems, craft, explore, openContainerAt, recordContainer, travel, verifyPlan } from "./skills.js";
+import { buildStructure, collect, containerItems, craft, explore, fight, openContainerAt, recordContainer, travel, verifyPlan } from "./skills.js";
 import { chunkOf, renderMap, type MapMarker } from "./worldmap.js";
 import { briefSkills } from "../script/skills.js";
 
@@ -247,7 +247,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         lines.push(`${name}:`);
         for (const e of list.slice(0, args.limit)) {
           const label = e.item ? `${e.item.count} ${shortId(e.item.id)}` : `${shortId(e.type)}${e.health !== undefined ? ` ${e.health.toFixed(0)}hp` : ""}`;
-          lines.push(line(label, e));
+          lines.push(line(label, e) + (e.item ? "" : ` · uuid ${e.uuid}`));
         }
         if (list.length > args.limit) lines.push(`  +${list.length - args.limit} more`);
       }
@@ -759,6 +759,25 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     run: async (rt, session, args) =>
       startJob(rt, session, "collect", `${args.count}× ${(args.blocks as string[]).map((b) => shortId(fullId(b))).join("/")}`, args.waitSeconds, (ctx) =>
         collect(rt, ctx, { blocks: args.blocks, count: args.count, radius: args.radius, maxSeconds: args.maxSeconds, dig: args.dig }),
+      ),
+  },
+  {
+    name: "fight",
+    title: "Fight nearby hostile mobs (job)",
+    description:
+      "Background job: equip your best sword (or axe), close in on the nearest hostile mob and melee it on the weapon's cooldown, then the next one, until none is left within `radius`. Stops when health falls to `minHealth`. Skips creepers unless `creepers` is true. Use it when a mob is close instead of attacking by hand.",
+    inputSchema: {
+      radius: z.number().int().min(3).max(32).optional().default(12).describe("Search radius in blocks."),
+      types: z.array(z.string()).optional().describe('Only these mob types, e.g. ["zombie"].'),
+      maxSeconds: z.number().int().min(5).max(300).optional().default(60),
+      minHealth: z.number().min(1).max(19).optional().default(6),
+      creepers: z.boolean().optional().default(false),
+      waitSeconds,
+    },
+    annotations: WRITE,
+    run: async (rt, session, args) =>
+      startJob(rt, session, "fight", `within ${args.radius}`, args.waitSeconds, (ctx) =>
+        fight(rt, ctx, { radius: args.radius, types: args.types, maxSeconds: args.maxSeconds, minHealth: args.minHealth, creepers: args.creepers }),
       ),
   },
   {
