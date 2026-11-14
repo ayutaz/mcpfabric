@@ -46,3 +46,6 @@ mcpfabric.config.json
 # MCP bundle build output
 .mcpb-stage/
 dist-mcpb/
+
+# extra game dirs of parallel bench instances (contain bridge tokens)
+versions/*/run-*/
