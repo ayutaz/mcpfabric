@@ -1053,9 +1053,92 @@ const DIRS: [string, number, number][] = [
   ["east", 1, 0],
 ];
 
+/** Place the selected bed with its foot on a cell next to you and its head one further; the game's reason when it fails. */
+async function placeBedNextTo(rt: AgentRuntime, ctx: JobContext, id: string, fx: number, fy: number, fz: number): Promise<{ bed?: Pos & { id: string }; why: string }> {
+  let why = "";
+  for (const [, dx, dz] of DIRS) {
+    for (const [facing, hx, hz] of DIRS) {
+      const foot = { x: fx + dx, y: fy, z: fz + dz };
+      if (foot.x + hx === fx && foot.z + hz === fz) continue; // the head would be where you stand
+      const r: PlaceAtResult = await rt.body
+        .placeAt(foot, `${id}[part=foot,facing=${facing}]`)
+        .catch((e: unknown) => ({ result: e instanceof Error ? e.message : String(e), placed: false }));
+      // On a remote server `placed` is null and only the click result is known.
+      if (r.placed === true || (r.placed !== false && CLICK_OK.test(r.result))) {
+        ctx.log(`placed ${shortId(id)} at ${fmtPos(foot)} facing ${facing}`);
+        return { bed: { id, ...foot }, why: "" };
+      }
+      why = r.result;
+    }
+  }
+  return { why };
+}
+
+/** Hardest block {@link makeRoomForBed} digs (stone and deepslate are 1.5-3; obsidian 50, bedrock -1). */
+const BED_ROOM_MAX_HARDNESS = 3;
+
+/**
+ * Dig a bed-sized space beside you: the two cells in a row at your feet level in one direction and
+ * the two above them (the game wants air over a bed), with a floor under both. The direction with
+ * the fewest blocks to dig wins; directions touching water or lava, or with nothing to stand the bed
+ * on, are skipped. Your own column and the cells above your head are left alone, so a sealed shelter
+ * stays sealed. False when no direction will do or a block would not break.
+ */
+async function makeRoomForBed(rt: AgentRuntime, ctx: JobContext, fx: number, fy: number, fz: number): Promise<boolean> {
+  let best: { cells: Pos[]; dig: number } | undefined;
+  for (const [name, dx, dz] of DIRS) {
+    const foot = { x: fx + dx, y: fy, z: fz + dz };
+    const head = { x: fx + 2 * dx, y: fy, z: fz + 2 * dz };
+    const cells = [foot, { ...foot, y: fy + 1 }, head, { ...head, y: fy + 1 }];
+    const floor = [{ ...foot, y: fy - 1 }, { ...head, y: fy - 1 }];
+    const near: Pos[] = [];
+    for (const c of cells) {
+      for (const [, sx, sz] of DIRS) near.push({ x: c.x + sx, y: c.y, z: c.z + sz });
+    }
+    near.push({ ...foot, y: fy + 2 }, { ...head, y: fy + 2 });
+    const probes = await rt.body.blocks([...cells, ...floor, ...near], { tool: true });
+    const [inCells, under, around] = [probes.slice(0, 4), probes.slice(4, 6), probes.slice(6)];
+    if (probes.some((p) => !p.loaded)) continue;
+    if ([...inCells, ...under, ...around].some((p) => p.id && /water|lava/.test(p.id))) {
+      ctx.log(`no bed room to the ${name}: water or lava`);
+      continue;
+    }
+    if (under.some((p) => p.air || (p.height ?? 1) < 0.5)) continue;
+    if (inCells.some((p) => !p.air && (p.hardness === undefined || p.hardness < 0 || p.hardness > BED_ROOM_MAX_HARDNESS))) continue;
+    const dig = inCells.filter((p) => !p.air).length;
+    if (!best || dig < best.dig) best = { cells, dig };
+  }
+  if (!best) {
+    ctx.log("no direction to dig a bed-sized space");
+    return false;
+  }
+  ctx.log(`digging a bed-sized space (${best.dig} block${best.dig === 1 ? "" : "s"})`);
+  for (const cell of best.cells) {
+    ctx.checkpoint();
+    const [probe] = await rt.body.blocks([cell], { tool: true });
+    if (!probe || probe.air) continue;
+    const self = await rt.body.self();
+    if (probe.bestSlot !== undefined && probe.bestSlot !== self.selectedSlot) await rt.body.selectHotbar(probe.bestSlot);
+    await rt.body.lookAt(centerOf(cell));
+    await rt.body.breakBlock(cell);
+    const limitMs = Math.min(30_000, 3000 + (probe.hardness ?? 1) * 6000);
+    const gone = await waitFor(ctx, async () => {
+      const [b] = await rt.body.blocks([cell]);
+      return !!b && (b.air === true || b.id !== probe.id);
+    }, limitMs);
+    if (!gone) {
+      await rt.body.stopBreaking().catch(() => undefined);
+      ctx.log(`${shortId(probe.id ?? "block")} @ ${fmtPos(cell)} did not break`);
+      return false;
+    }
+  }
+  return true;
+}
+
 /**
  * Sleep through the night: use a bed within 24 blocks, or place one from the inventory next to
- * you, then right-click it until the game lets you lie down. "Only at night" is waited out (dusk);
+ * you (digging a bed-sized space beside you when there is no room), then right-click it until the
+ * game lets you lie down. "Only at night" is waited out (dusk);
  * "monsters nearby", "obstructed" and "too far" end the job with the game's message. Sleeping also
  * sets the respawn point to the bed.
  */
@@ -1077,24 +1160,11 @@ export async function sleepInBed(rt: AgentRuntime, ctx: JobContext, opts: SleepO
     const fx = Math.floor(self0.x);
     const fy = Math.floor(self0.y);
     const fz = Math.floor(self0.z);
-    let why = "";
-    outer: for (const [, dx, dz] of DIRS) {
-      for (const [facing, hx, hz] of DIRS) {
-        const foot = { x: fx + dx, y: fy, z: fz + dz };
-        if (foot.x + hx === fx && foot.z + hz === fz) continue; // the head would be where you stand
-        const r: PlaceAtResult = await rt.body
-          .placeAt(foot, `${item.id}[part=foot,facing=${facing}]`)
-          .catch((e: unknown) => ({ result: e instanceof Error ? e.message : String(e), placed: false }));
-        // On a remote server `placed` is null and only the click result is known.
-        if (r.placed === true || (r.placed !== false && CLICK_OK.test(r.result))) {
-          bed = { id: item.id, ...foot };
-          ctx.log(`placed ${shortId(item.id)} at ${fmtPos(foot)} facing ${facing}`);
-          break outer;
-        }
-        why = r.result;
-      }
-    }
-    if (!bed) throw new JobFailure(`could not place the bed next to you (${why}): stand on flat open ground with two free blocks in a row and retry`);
+    let placed = await placeBedNextTo(rt, ctx, item.id, fx, fy, fz);
+    // In a dug shelter or a tunnel there is no room: dig a bed-sized space beside you and try again.
+    if (!placed.bed && (await makeRoomForBed(rt, ctx, fx, fy, fz))) placed = await placeBedNextTo(rt, ctx, item.id, fx, fy, fz);
+    bed = placed.bed;
+    if (!bed) throw new JobFailure(`could not place the bed next to you (${placed.why}): stand on flat open ground with two free blocks in a row and retry`);
   }
   const center = { x: bed.x + 0.5, y: bed.y, z: bed.z + 0.5 };
   if (distance(center, await rt.body.self()) > 2.5) await travel(rt, ctx, bed, { reach: 1.5 });

@@ -11,7 +11,9 @@ All notable changes to this project are documented here. The format is based on
 - `fight` agent job: equips the best sword or axe, closes in on the nearest hostile mob and swings on
   the weapon's cooldown until none is left in the radius; stops at low health and skips creepers
   unless asked.
-- `sleep_in_bed` agent job: uses a bed within 24 blocks or places one from the inventory, lies down
+- `sleep_in_bed` agent job: uses a bed within 24 blocks or places one from the inventory (with no room
+  next to you, as in a dug shelter, it first digs a bed-sized space beside you: two cells in a row at your
+  feet level and the two above them, skipping directions next to water or lava), lies down
   (waiting for dusk if needed) and reports the game's refusal ("monsters nearby", "obstructed"), or
   gives up on a bed the game does not answer. Click results are compared case-insensitively
   (1.21.2+ prints `Success[...]`; on a dedicated server `placed` is null).

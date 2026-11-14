@@ -227,6 +227,19 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     const out2 = await remote.tool("sleep_in_bed", { waitSeconds: 30 });
     assert.match(out2, /\[done\][\s\S]*sleeping in the blue_bed at[\s\S]*At dawn break the bed/);
     assert.equal(remote.world.calls.filter((c) => c.startsWith("placeAt:")).length, 1, "placed once, no retry with an empty hand");
+    // Sealed in a 1x1 hole (the night shelter): no room for a bed, so it digs a bed-sized space beside
+    // the player, away from water, and leaves the roof closed.
+    const hole = setup();
+    for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) for (let y = 64; y <= 66; y++) {
+      if (x !== 0 || z !== 0 || y === 66) hole.world.set({ x, y, z }, "minecraft:dirt");
+    }
+    hole.world.set({ x: 0, y: 64, z: -3 }, "minecraft:water");
+    hole.world.give("minecraft:white_bed", 1, 12);
+    const dug = await hole.tool("sleep_in_bed", { waitSeconds: 50 });
+    assert.match(dug, /\[done\][\s\S]*sleeping in the white_bed at 0 64 1/);
+    assert.match(dug, /no bed room to the north: water or lava[\s\S]*digging a bed-sized space \(4 blocks\)[\s\S]*placed white_bed at 0 64 1 facing south/);
+    assert.equal(hole.world.count("minecraft:white_bed"), 0, "the bed was placed");
+    assert.ok(hole.world.blocks.has("0,66,0"), "the roof over the hole stays");
   },
   craft_item: async ({ world, tool }) => {
     world.give("minecraft:oak_planks", 2);
