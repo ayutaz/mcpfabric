@@ -76,6 +76,16 @@ public final class McpConfig {
 	 * while the server runs at 20 tps or slower.
 	 */
 	public boolean syncClientTickRate = false;
+	/**
+	 * Client only: restrict {@code perception.scan} to what the player can actually see. Off (the default),
+	 * the scan reads every loaded chunk, buried ores and hidden chests included. On, ore counts, searched
+	 * blocks ({@code find}) and points of interest only include blocks within {@link #visionRange} whose face
+	 * toward the eye opens onto air (or glass, water, leaves) with a clear line from the eye to that face.
+	 * Terrain heights, biomes and log counts are unchanged. For fair play rigs.
+	 */
+	public boolean visionLineOfSight = false;
+	/** Sight distance in blocks for {@link #visionLineOfSight} (8-128). */
+	public int visionRange = 48;
 	/** Save folders supervised_enter_world may open (disposable worlds). Empty: none. */
 	public List<String> supervisedWorlds = new ArrayList<>();
 	/** Command roots supervised_command may run; data ({...}) is refused in every command. */

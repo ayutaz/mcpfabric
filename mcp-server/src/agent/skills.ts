@@ -393,7 +393,12 @@ export async function collect(rt: AgentRuntime, ctx: JobContext, opts: CollectOp
               `only buried ${what} left within ${radius}m (${candidates.length}, e.g. ${fmtPos(far)}), ` +
                 (dig ? `none within ${BURIED_RANGE}m to tunnel to — travel_to closer first` : "and digging is off — dig toward it"),
             )
-          : await done(`no ${what} within ${radius}m — explore, or recall where you saw some`),
+          : await done(
+              scan.lineOfSight
+                ? `no ${what} in sight within ${radius}m (only blocks you can see count) — explore caves, ravines or cliffs, ` +
+                    `or dig a tunnel or branch mine at the right depth to expose some, or recall where you saw some`
+                : `no ${what} within ${radius}m — explore, or recall where you saw some`,
+            ),
       );
     }
 

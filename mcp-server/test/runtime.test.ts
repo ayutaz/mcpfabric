@@ -52,6 +52,16 @@ test("observe records POIs, retires vanished ones and reports ores", async () =>
   assert.doesNotMatch(await tool("observe", { radius: 2 }), /gone/);
   world.call = original;
 
+  // A line-of-sight scan (visionLineOfSight) neither: the chest is only out of sight.
+  world.call = (async (method: string, params?: Record<string, unknown>) => {
+    const r = (await original(method, params)) as Record<string, unknown>;
+    return method === "perception.scan" ? { ...r, pois: [], lineOfSight: true, sightRange: 48 } : r;
+  }) as typeof world.call;
+  const sight = await tool("observe", { radius: 2 });
+  assert.doesNotMatch(sight, /gone/);
+  assert.match(sight, /ores in sight: iron_ore×1/);
+  world.call = original;
+
   const recall = await tool("recall", { query: "chest" });
   assert.match(recall, /#2 container "chest"/);
   const again = await tool("recall", { query: "chest" });

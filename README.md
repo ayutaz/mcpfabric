@@ -182,11 +182,17 @@ stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writ
   "enableVision": true,
   "enableUiControl": false,
   "enableSupervisedControl": false,
+  "visionLineOfSight": false,
+  "visionRange": 48,
   "supervisedWorlds": [],
   "supervisedCommands": ["time", "weather"],
   "requireApproval": []
 }
 ```
+
+`visionLineOfSight` (client, off by default) limits the agent's perception scan to what the player can see: ore counts, 
+searched blocks and points of interest then only include blocks within `visionRange` blocks with a clear line of sight 
+from the eye to one of their faces, so buried ores and hidden chests stay hidden (for fair-play test rigs).
 
 The `enable*` flags let you switch off dangerous capability groups. `enableUiControl` is the one
 that starts off: it lets the model click buttons and type into text fields of game screens

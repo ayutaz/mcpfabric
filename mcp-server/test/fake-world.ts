@@ -41,6 +41,8 @@ export class FakeWorld implements Bridge {
   remote = false;
   /** Beds take clicks but the server never answers (no message, no sleep). */
   bedSilent = false;
+  /** Like the mod's `visionLineOfSight`: the scan only reports exposed blocks (a stand-in for "visible"). */
+  lineOfSight = false;
   /** The player lies in a bed (player.getState `sleeping`). */
   sleeping = false;
   private seq = 0;
@@ -147,9 +149,9 @@ export class FakeWorld implements Bridge {
           if (!inArea(x, z)) continue;
           const base = id.replace(/\[.*$/, "");
           if (POI.test(base)) pois.push({ id: base, x, y, z, ...(/chest|barrel/.test(base) ? { container: true } : {}) });
-          if (find.includes(id)) found.push({ id, x, y, z, exposed: this.exposed({ x, y, z }) });
+          if (find.includes(id) && (!this.lineOfSight || this.exposed({ x, y, z }))) found.push({ id, x, y, z, exposed: this.exposed({ x, y, z }) });
         }
-        return { dimension: p.dimension, player: { x: p.x, y: p.y, z: p.z }, radius, chunks, pois, found };
+        return { dimension: p.dimension, player: { x: p.x, y: p.y, z: p.z }, radius, chunks, pois, found, ...(this.lineOfSight ? { lineOfSight: true, sightRange: 48 } : {}) };
       }
       case "perception.blocks": {
         const blocks = (a.positions as P[]).map((pos) => {

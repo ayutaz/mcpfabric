@@ -32,8 +32,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 import java.nio.file.Path;
@@ -90,7 +94,11 @@ public final class PerceptionHandlers {
 			int radius = Math.max(0, Math.min(MAX_RADIUS, ctx.optInt("radius", 6)));
 			Set<String> find = new HashSet<>(ctx.getStringList("find"));
 			int findLimit = Math.max(1, Math.min(500, ctx.optInt("findLimit", 64)));
-			return scan(ClientMc.level(), ClientMc.player(), radius, find, findLimit);
+			LocalPlayer player = ClientMc.player();
+			Sight sight = McpFabric.config().visionLineOfSight
+					? new Sight(player.getEyePosition(), Math.max(8, Math.min(128, McpFabric.config().visionRange)))
+					: null;
+			return scan(ClientMc.level(), player, radius, find, findLimit, sight);
 		}));
 
 		router.register("perception.entities", ctx -> ClientMc.call(() -> {
@@ -168,7 +176,46 @@ public final class PerceptionHandlers {
 		return POI.computeIfAbsent(state.getBlock(), b -> POI_BLOCKS.contains(blockId(b)));
 	}
 
-	private static JsonObject scan(ClientLevel level, LocalPlayer player, int radius, Set<String> find, int findLimit) {
+	/** Countable blocks that are found by digging, not by looking around: everything countable but logs. */
+	private static boolean ore(BlockState state) {
+		return !state.is(BlockTags.LOGS) && countable(state);
+	}
+
+	/** Line-of-sight mode ({@code visionLineOfSight}): the eye and how far it sees. */
+	private record Sight(Vec3 eye, double range) {
+		/** Whether a 16×16×16 section can hold anything within sight. */
+		boolean reaches(int minX, int minY, int minZ) {
+			double gx = Math.max(0, Math.max(minX - eye.x, eye.x - (minX + 16)));
+			double gy = Math.max(0, Math.max(minY - eye.y, eye.y - (minY + 16)));
+			double gz = Math.max(0, Math.max(minZ - eye.z, eye.z - (minZ + 16)));
+			return gx * gx + gy * gy + gz * gz <= range * range;
+		}
+	}
+
+	/**
+	 * Whether the player can see the block: it is within range, one of its faces turned toward the eye opens
+	 * onto a block you can see through (air, glass, water, leaves...), and nothing blocks the line from the
+	 * eye to the centre of that face. A buried ore has no such face; one behind a wall fails the ray.
+	 */
+	private static boolean visible(ClientLevel level, LocalPlayer player, Sight sight, BlockPos pos) {
+		Vec3 eye = sight.eye();
+		double cx = pos.getX() + 0.5, cy = pos.getY() + 0.5, cz = pos.getZ() + 0.5;
+		double dx = eye.x - cx, dy = eye.y - cy, dz = eye.z - cz;
+		if (dx * dx + dy * dy + dz * dz > sight.range() * sight.range()) return false;
+		BlockPos.MutableBlockPos n = new BlockPos.MutableBlockPos();
+		for (Direction d : Direction.values()) {
+			// The face lies 0.5 from the centre: it looks toward the eye when the eye is beyond its plane.
+			if (dx * d.getStepX() + dy * d.getStepY() + dz * d.getStepZ() <= 0.5) continue;
+			n.setWithOffset(pos, d);
+			if (level.getBlockState(n).canOcclude()) continue;
+			Vec3 face = new Vec3(cx + 0.5 * d.getStepX(), cy + 0.5 * d.getStepY(), cz + 0.5 * d.getStepZ());
+			BlockHitResult hit = level.clip(new ClipContext(eye, face, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, player));
+			if (hit.getType() == HitResult.Type.MISS || hit.getBlockPos().equals(pos)) return true;
+		}
+		return false;
+	}
+
+	private static JsonObject scan(ClientLevel level, LocalPlayer player, int radius, Set<String> find, int findLimit, Sight sight) {
 		double px = player.getX(), py = player.getY(), pz = player.getZ();
 		// ChunkPos became a record (x()/z()) in 26.1; the block position works everywhere.
 		int pcx = player.blockPosition().getX() >> 4;
@@ -209,13 +256,16 @@ public final class PerceptionHandlers {
 			for (int i = 0; i < sections.length; i++) {
 				LevelChunkSection section = sections[i];
 				if (section.hasOnlyAir()) continue;
-				section.getStates().count((state, n) -> {
-					if (countable(state)) counts.merge(blockId(state.getBlock()), n, Integer::sum);
-				});
-				boolean hasPoi = pois.size() < MAX_POIS && section.maybeHas(PerceptionHandlers::poiBlock);
-				boolean hasWanted = searchChunk && section.maybeHas(wanted);
-				if (!hasPoi && !hasWanted) continue;
 				int baseY = chunk.getSectionYFromSectionIndex(i) << 4;
+				// In line-of-sight mode ores are counted block by block below, only the visible ones.
+				section.getStates().count((state, n) -> {
+					if (countable(state) && (sight == null || !ore(state))) counts.merge(blockId(state.getBlock()), n, Integer::sum);
+				});
+				boolean inSight = sight == null || sight.reaches(cx * 16, baseY, cz * 16);
+				boolean hasOre = sight != null && inSight && section.maybeHas(PerceptionHandlers::ore);
+				boolean hasPoi = inSight && pois.size() < MAX_POIS && section.maybeHas(PerceptionHandlers::poiBlock);
+				boolean hasWanted = inSight && searchChunk && section.maybeHas(wanted);
+				if (!hasPoi && !hasWanted && !hasOre) continue;
 				BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
 				for (int y = 0; y < 16; y++) {
 					for (int z = 0; z < 16; z++) {
@@ -223,12 +273,16 @@ public final class PerceptionHandlers {
 							BlockState state = section.getBlockState(x, y, z);
 							if (state.isAir()) continue;
 							m.set(cx * 16 + x, baseY + y, cz * 16 + z);
-							if (hasPoi && pois.size() < MAX_POIS && poiBlock(state)) {
+							if (hasOre && ore(state) && visible(level, player, sight, m)) {
+								counts.merge(blockId(state.getBlock()), 1, Integer::sum);
+							}
+							if (hasPoi && pois.size() < MAX_POIS && poiBlock(state) && (sight == null || visible(level, player, sight, m))) {
 								pois.add(poi(blockId(state), m, false));
 							}
 							if (hasWanted && wanted.test(state)) {
 								long d = (long) (dist2(m.getX() + 0.5, m.getY() + 0.5, m.getZ() + 0.5, px, py, pz) * 64);
 								if (found.size() >= findLimit && d >= found.peek()[5]) continue;
+								if (sight != null && !visible(level, player, sight, m)) continue;
 								found.add(new long[]{m.getX(), m.getY(), m.getZ(), exposed(level, m) ? 1 : 0, foundIds.size(), d});
 								foundIds.add(blockId(state));
 								if (found.size() > findLimit) found.poll();
@@ -247,6 +301,7 @@ public final class PerceptionHandlers {
 				BlockEntity be = e.getValue();
 				String id = blockId(be.getBlockState());
 				boolean container = be instanceof Container;
+				if (sight != null && !visible(level, player, sight, e.getKey())) continue;
 				if (container || POI_BLOCK_ENTITIES.contains(id) || id.endsWith("_bed")) {
 					pois.add(poi(id, e.getKey(), container));
 				}
@@ -282,6 +337,9 @@ public final class PerceptionHandlers {
 		o.add("pois", poiJson);
 		if (!find.isEmpty()) o.add("found", foundJson);
 		o.addProperty("truncated", pois.size() >= MAX_POIS);
+		// Tells the runtime that missing ores may still be there, just out of sight.
+		o.addProperty("lineOfSight", sight != null);
+		if (sight != null) o.addProperty("sightRange", (int) sight.range());
 		return o;
 	}
 

@@ -62,6 +62,12 @@ export interface ScanResult {
   pois: ScanPoi[];
   found?: (Pos & { id: string; exposed?: boolean })[];
   truncated?: boolean;
+  /**
+   * The mod's `visionLineOfSight` is on: ore counts, `found` and `pois` only hold blocks the player can see
+   * (within `sightRange`). A block missing from the scan may still be there, out of sight.
+   */
+  lineOfSight?: boolean;
+  sightRange?: number;
 }
 
 export interface BlockProbe extends Pos {

@@ -176,6 +176,14 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     const out = await tool("collect_blocks", { blocks: ["oak_log"], count: 1, waitSeconds: 30 });
     assert.match(out, /\[done\][\s\S]*broke 1\/1 oak_log; inventory \+oak_log×1/);
     assert.equal(world.count("minecraft:oak_log"), 1);
+    // Line of sight: a buried ore is not offered, and the failure says how to find one fairly.
+    world.lineOfSight = true;
+    world.set({ x: 6, y: 59, z: 6 }, "minecraft:iron_ore");
+    for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) {
+      world.set({ x: 6 + dx!, y: 59 + dy!, z: 6 + dz! }, "minecraft:stone");
+    }
+    const hidden = await tool("collect_blocks", { blocks: ["iron_ore"], count: 1, waitSeconds: 30 });
+    assert.match(hidden, /\[failed\][\s\S]*no iron_ore in sight within 48m[\s\S]*branch mine/);
   },
   fight: async ({ world, tool }) => {
     world.give("minecraft:stone_sword", 1, 3);

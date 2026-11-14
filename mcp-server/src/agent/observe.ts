@@ -51,6 +51,8 @@ export interface ObserveReport {
   resources: Record<string, number>;
   /** Nearest chunk centre holding each rare resource. */
   nearestRare: Record<string, { x: number; z: number; distance: number }>;
+  /** Only what the player can see was scanned (`visionLineOfSight`). */
+  lineOfSight?: boolean;
 }
 
 const RESOURCE = /(_ore|ancient_debris|_log|_stem)$/;
@@ -86,6 +88,7 @@ export function ingestScan(
     gone: [],
     resources: {},
     nearestRare: {},
+    ...(scan.lineOfSight ? { lineOfSight: true } : {}),
   };
 
   const xs = scan.chunks.map((c) => c.cx);
@@ -127,8 +130,8 @@ export function ingestScan(
   }
 
   // Remembered POIs inside fully scanned chunks that were not seen this time are gone — unless the
-  // POI list was truncated, in which case absence proves nothing.
-  for (const m of scan.truncated ? [] : existing) {
+  // POI list was truncated or the scan only covers the line of sight: then absence proves nothing.
+  for (const m of scan.truncated || scan.lineOfSight ? [] : existing) {
     if (matched.has(m.id) || m.data?.poi !== true || !m.pos || m.status === "gone") continue;
     const key = chunkKey(Math.floor(m.pos.x / 16), Math.floor(m.pos.z / 16));
     if (!scanned.has(key)) continue;
@@ -175,7 +178,7 @@ export function formatObserveReport(r: ObserveReport, here: Located): string {
       const near = r.nearestRare[id];
       return near ? `${shortId(id)}×${n} (nearest ~${near.x} ${near.z}, ${fmtDistance(near.distance)})` : `${shortId(id)}×${n}`;
     });
-  if (ores.length > 0) lines.push(`ores in view: ${ores.join(" · ")}`);
+  if (ores.length > 0) lines.push(`${r.lineOfSight ? "ores in sight" : "ores in view"}: ${ores.join(" · ")}`);
   if (logs > 0) lines.push(`wood: ${logs} log blocks`);
   return lines.join("\n");
 }
