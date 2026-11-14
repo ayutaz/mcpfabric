@@ -24,6 +24,14 @@ All notable changes to this project are documented here. The format is based on
 - `syncClientTickRate` config flag (client, off by default): when a test rig speeds the server up with
   `/tick rate`, the client ticks at the same rate instead of vanilla's 20 tps floor. Agent jobs scale
   their tick-based timers (attack cooldowns) by `MCPFABRIC_TICK_RATE`.
+- `reflexes` config flag (client, off by default): survival reflexes that run on the client tick, without
+  the model. Under water the bot holds jump (swims up) and stops sneaking; when air drops below a third,
+  navigation is cancelled (`low_air`) so it does not keep pathing along the bottom. `break_block` in survival
+  refuses (`unsafe_dig_fluid`) to break a block in the player's own column within 3 blocks below the feet
+  when water or lava touches it, unless `allowFluid` is set. A script's `mc.sleep` longer than 0.5 s wakes
+  early on death, damage or low air and resolves to `"dead"`, `"damaged"` or `"low_air"`.
+  `player.getState` reports `reflex` (`swim_up` or null) and `reflexSwimTicks`; `info.capabilities` reports
+  `reflexes`.
 - `surroundings` lists each mob's and player's UUID, so `attack_entity` / `use_entity` work in
   multiplayer, where `query_entities` needs a server.
 

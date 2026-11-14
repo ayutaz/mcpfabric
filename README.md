@@ -184,6 +184,7 @@ stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writ
   "enableSupervisedControl": false,
   "visionLineOfSight": false,
   "visionRange": 48,
+  "reflexes": false,
   "supervisedWorlds": [],
   "supervisedCommands": ["time", "weather"],
   "requireApproval": []
@@ -193,6 +194,12 @@ stops), and the MCP server reads it when `MCPFABRIC_TOKEN` is not set. Set `writ
 `visionLineOfSight` (client, off by default) limits the agent's perception scan to what the player can see: ore counts, 
 searched blocks and points of interest then only include blocks within `visionRange` blocks with a clear line of sight 
 from the eye to one of their faces, so buried ores and hidden chests stay hidden (for fair-play test rigs).
+
+`reflexes` (client, off by default) adds survival reflexes that run every client tick, without waiting for
+the model: under water the bot swims up, and below a third of its air it cancels navigation. In survival,
+`break_block` then refuses (`unsafe_dig_fluid`) to dig out the block under the player's feet (its own column,
+up to 3 blocks down) when water or lava touches it; pass `allowFluid: true` to dig anyway. A script's
+`mc.sleep` wakes early on death, damage or low air.
 
 The `enable*` flags let you switch off dangerous capability groups. `enableUiControl` is the one
 that starts off: it lets the model click buttons and type into text fields of game screens

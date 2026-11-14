@@ -86,6 +86,13 @@ public final class McpConfig {
 	public boolean visionLineOfSight = false;
 	/** Sight distance in blocks for {@link #visionLineOfSight} (8-128). */
 	public int visionRange = 48;
+	/**
+	 * Client only: protective reflexes that run every client tick without waiting for the model, through
+	 * normal player input only. Now: hold jump while the player's head is under water (the navigator only
+	 * holds jump while it walks, so a player left standing in deep water sank and drowned), and stop the
+	 * current path when air runs low so it cannot pull the player back down. Off by default.
+	 */
+	public boolean reflexes = false;
 	/** Save folders supervised_enter_world may open (disposable worlds). Empty: none. */
 	public List<String> supervisedWorlds = new ArrayList<>();
 	/** Command roots supervised_command may run; data ({...}) is refused in every command. */

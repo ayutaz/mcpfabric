@@ -56,11 +56,17 @@ public final class InteractHandlers {
 		router.register("interact.breakBlock", ctx -> {
 			BlockPos pos = BlockPos.containing(ctx.getDouble("x"), ctx.getDouble("y"), ctx.getDouble("z"));
 			String mode = ctx.optString("mode", "survival");
+			boolean allowFluid = ctx.optBool("allowFluid", false);
 			if (!"instant".equals(mode)) {
 				return ClientMc.call(() -> {
 					requireControl();
 					MultiPlayerGameMode gm = ClientMc.gameMode();
 					LocalPlayer p = ClientMc.player();
+					if (McpFabric.config().reflexes && !allowFluid && floodsFromBelow(p, pos)) {
+						throw new RpcException("unsafe_dig_fluid", "Breaking the block under the player at " + pos.toShortString()
+								+ " would open it to water or lava next to it (the player drops into the fluid). Dig down"
+								+ " somewhere dry, or pass allowFluid:true to break it anyway.");
+					}
 					Direction face = faceToward(pos, p.getEyePosition());
 					gm.startDestroyBlock(pos, face);
 					BotController.get().startMining(pos, face);
@@ -354,6 +360,25 @@ public final class InteractHandlers {
 		Entity e = level.getEntity(uuid);
 		if (e == null || !e.isAlive()) return null;
 		return e instanceof LivingEntity le ? le.getHealth() : Float.NaN;
+	}
+
+	/**
+	 * Reflex guard (config {@code reflexes}): the block is in the player's own column, at most three blocks
+	 * below the feet, and water or lava touches it from the side or from below (or it holds fluid itself).
+	 * Digging it drops the player into the fluid: the main cause of drowning seen in survival runs.
+	 */
+	static boolean floodsFromBelow(LocalPlayer p, BlockPos pos) {
+		BlockPos feet = p.blockPosition();
+		if (pos.getX() != feet.getX() || pos.getZ() != feet.getZ() || pos.getY() >= feet.getY()
+				|| pos.getY() < feet.getY() - 3) {
+			return false;
+		}
+		Level level = p.level();
+		if (!level.getFluidState(pos).isEmpty()) return true;
+		for (Direction d : Direction.values()) {
+			if (d != Direction.UP && !level.getFluidState(pos.relative(d)).isEmpty()) return true;
+		}
+		return false;
 	}
 
 	private static void pause(long ms) throws RpcException {

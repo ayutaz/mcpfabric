@@ -72,7 +72,7 @@ const BRIDGE_TOOLS = {
   start_using_item: { method: "control.startUsing", args: {} },
   stop_using_item: { method: "control.stopUsing", args: {} },
   // interact
-  break_block: { method: "interact.breakBlock", args: { ...pos, mode: "instant" }, invalid: { ...pos, mode: "fast" } },
+  break_block: { method: "interact.breakBlock", args: { ...pos, mode: "instant", allowFluid: true }, invalid: { ...pos, allowFluid: "yes" } },
   place_block: { method: "interact.placeBlock", args: { ...pos, face: "north" }, invalid: { ...pos, face: "sideways" } },
   place_block_at: { method: "interact.placeAt", args: { ...pos, state: "minecraft:oak_stairs[facing=north,half=top]" }, invalid: { ...pos } },
   use_item: { method: "interact.useItem", args: {} },

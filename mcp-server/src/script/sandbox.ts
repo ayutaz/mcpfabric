@@ -60,7 +60,15 @@ export interface ScriptHostApi {
   call(name: string, params: unknown): Promise<unknown>;
   /** Names exposed as helpers: `mc.<name>(params)` = `mc.call("<name>", params)`. */
   helpers: string[];
+  /**
+   * Optional: starts watching one `mc.sleep`. The returned check is polled every
+   * {@link SLEEP_POLL_MS}; a non-empty reason ends the sleep early and `mc.sleep` resolves to it.
+   */
+  watchSleep?: () => () => Promise<string | undefined>;
 }
+
+/** How often a watched `mc.sleep` asks {@link ScriptHostApi.watchSleep} whether to wake. */
+export const SLEEP_POLL_MS = 500;
 
 export interface ScriptError {
   name: string;
@@ -114,7 +122,7 @@ const PRELUDE = `(function (rawCall, rawLog, rawSleep, argsJson, helpersJson) {
     });
   };
   const log = (...a) => rawLog(a.map(show).join(" "));
-  const mc = { args: JSON.parse(argsJson), call, log, sleep: (ms) => rawSleep(Number(ms)).then(() => undefined) };
+  const mc = { args: JSON.parse(argsJson), call, log, sleep: (ms) => rawSleep(Number(ms)).then((r) => r || undefined) };
   for (const name of JSON.parse(helpersJson)) mc[name] = (params) => call(name, params);
   Object.freeze(mc);
   Object.defineProperty(globalThis, "mc", { value: mc });
@@ -349,16 +357,29 @@ export async function runScript(
     const n = ctx.getNumber(msH);
     // Never past the deadline: the timeout ends the run then anyway.
     const ms = Math.min(Number.isFinite(n) ? Math.max(0, n) : 0, Math.max(0, deadline - Date.now()) + 1);
-    return hostPromise(
-      () =>
-        new Promise<string>((resolve) => {
-          const t = setTimeout(() => {
-            sleeps.delete(t);
-            resolve("null");
-          }, ms);
-          sleeps.add(t);
-        }),
-    );
+    const wait = (d: number) =>
+      new Promise<void>((resolve) => {
+        const t = setTimeout(() => {
+          sleeps.delete(t);
+          resolve();
+        }, d);
+        sleeps.add(t);
+      });
+    const check = api.watchSleep && ms > SLEEP_POLL_MS ? api.watchSleep() : undefined;
+    return hostPromise(async () => {
+      if (!check) {
+        await wait(ms);
+        return "";
+      }
+      const end = Date.now() + ms;
+      for (let left = ms; left > 0 && !finished; left = end - Date.now()) {
+        await wait(Math.min(SLEEP_POLL_MS, left));
+        if (finished || Date.now() >= end) break;
+        const reason = await check().catch(() => undefined);
+        if (reason) return reason;
+      }
+      return "";
+    });
   });
 
   try {

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { AgentRuntime } from "../src/agent/runtime.js";
 import { AGENT_TOOLS, AgentSession } from "../src/agent/tools.js";
 import { runScript, type ScriptHostApi } from "../src/script/sandbox.js";
-import { SCRIPT_TOOLS, ScriptHost } from "../src/script/tools.js";
+import { SCRIPT_TOOLS, ScriptHost, sleepWatch } from "../src/script/tools.js";
 import { FakeWorld } from "./fake-world.js";
 
 const OWNER = "session-a";
@@ -272,4 +272,63 @@ test("run_script works without the agent runtime; the skill tools need it", asyn
   const save = SCRIPT_TOOLS.find((t) => t.name === "save_skill")!;
   assert.ok(save.needsRuntime);
   await assert.rejects(save.run(host, OWNER, { name: "a", description: "b", code: "return 1" }), /need the agent runtime/);
+});
+
+test("a watched mc.sleep wakes early with the watcher's reason", async () => {
+  let polls = 0;
+  const watched: ScriptHostApi = {
+    ...api(),
+    watchSleep: () => async () => (++polls >= 2 ? "damaged" : undefined),
+  };
+  const run = await runScript("const t = Date.now(); const r = await mc.sleep(10000); return [r, Date.now() - t < 5000];", watched);
+  assert.equal(run.ok, true);
+  assert.equal(run.result, '["damaged",true]');
+  assert.equal(polls, 2);
+  // Short sleeps are not watched; a quiet watcher leaves the result undefined.
+  polls = -100;
+  const quiet = await runScript("return [await mc.sleep(100), await mc.sleep(600)];", watched);
+  assert.equal(quiet.result, "[null,null]");
+  assert.equal(polls, -99);
+});
+
+test("sleepWatch reports death, damage and low air", async () => {
+  const states: Record<string, unknown>[] = [
+    { health: 20, air: 300, maxAir: 300 },
+    { health: 20, air: 300, maxAir: 300 },
+    { health: 17, air: 300, maxAir: 300 },
+  ];
+  const bridge = { call: async () => states.shift() } as never;
+  const check = sleepWatch(bridge);
+  assert.equal(await check(), undefined);
+  assert.equal(await check(), undefined);
+  assert.equal(await check(), "damaged");
+  const air = sleepWatch({ call: async () => ({ health: 20, air: 40, maxAir: 300 }) } as never);
+  assert.equal(await air(), "low_air");
+  const dead = sleepWatch({ call: async () => ({ health: 0, air: 300, maxAir: 300 }) } as never);
+  assert.equal(await dead(), "dead");
+});
+
+test("the script host watches sleeps only when the mod reports reflexes", async () => {
+  for (const on of [true, false]) {
+    const calls: string[] = [];
+    let hp = 20;
+    const bridge = {
+      call: async (method: string) => {
+        calls.push(method);
+        if (method === "info.capabilities") return { reflexes: on };
+        if (method === "player.getState") return { health: (hp -= 2), air: 300, maxAir: 300 };
+        return {};
+      },
+    };
+    const host = new ScriptHost(bridge as never);
+    const run = await host.run("return await mc.sleep(2600)", { owner: OWNER });
+    assert.equal(run.ok, true);
+    if (on) {
+      assert.equal(run.result, '"damaged"');
+      assert.deepEqual(calls, ["info.capabilities", "player.getState", "player.getState"]);
+    } else {
+      assert.equal(run.result, "null");
+      assert.deepEqual(calls, ["info.capabilities"]);
+    }
+  }
 });

@@ -47,6 +47,9 @@ public final class BotController {
 	private int jumpOnceTicks = 0;
 	/** Jump held by navigation (swimming, climbing), apart from the jump a movement command holds. */
 	private boolean navJump;
+	/** Reflex (config {@code reflexes}): the head is under water, so jump is held to swim up. */
+	private boolean reflexSwim;
+	private long reflexSwimTicks;
 
 	// survival mining
 	/** Extra ticks allowed beyond a block's expected break time before mining is given up. */
@@ -180,6 +183,13 @@ public final class BotController {
 		}
 
 		synchronized (this) {
+			reflexSwim = McpFabric.config().reflexes && p.isUnderWater() && !p.isPassenger();
+			if (reflexSwim) {
+				reflexSwimTicks++;
+				if (path != null && p.getAirSupply() < p.getMaxAirSupply() / 3) {
+					stopNavigationInternal("low_air"); // surface first; the caller can path again afterwards
+				}
+			}
 			if (path != null) {
 				steer(mc, p);
 			}
@@ -189,7 +199,8 @@ public final class BotController {
 				miningPos = null;
 				navMining = false;
 			}
-			boolean driving = fwd || back || left || right || jumpHeld || navJump || sneak || sprint || jumpOnceTicks > 0 || path != null;
+			boolean driving = fwd || back || left || right || jumpHeld || navJump || sneak || sprint || jumpOnceTicks > 0 || path != null
+					|| reflexSwim;
 			if (driving) {
 				applyKeys(mc.options);
 				drivingKeys = true;
@@ -210,9 +221,9 @@ public final class BotController {
 		o.keyDown.setDown(back);
 		o.keyLeft.setDown(left);
 		o.keyRight.setDown(right);
-		o.keyShift.setDown(sneak);
+		o.keyShift.setDown(sneak && !reflexSwim); // sneaking sinks in water
 		o.keySprint.setDown(sprint);
-		o.keyJump.setDown(jumpHeld || navJump || jumpOnceTicks > 0);
+		o.keyJump.setDown(jumpHeld || navJump || jumpOnceTicks > 0 || reflexSwim);
 	}
 
 	private void releaseKeys(Options o) {
@@ -593,6 +604,16 @@ public final class BotController {
 		p.getInventory().setSelectedSlot(slot);
 		//?} else
 		/*p.getInventory().selected = slot;*/
+	}
+
+	/** Reflex state for {@code player.getState}: "swim_up" while the swim reflex holds jump, else null. */
+	public synchronized String reflexState() {
+		return reflexSwim ? "swim_up" : null;
+	}
+
+	/** Client ticks the swim reflex has held jump since the client started. */
+	public synchronized long reflexSwimTicks() {
+		return reflexSwimTicks;
 	}
 
 	private static BlockPos blockPos(NavPos pos) {

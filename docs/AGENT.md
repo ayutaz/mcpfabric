@@ -183,7 +183,7 @@ work at the top level.
 | `await mc.call(name, params)` | calls a bridge tool, by tool name (`get_self`) or RPC method (`player.getState`) |
 | `await mc.<tool>(params)` | the same, one helper per bridge tool: `mc.get_self()`, `mc.find_blocks({...})`, ... |
 | `mc.log(...)`, `console.log(...)` | records a log line (strings as is, other values as JSON) |
-| `await mc.sleep(ms)` | waits; never past the time limit |
+| `await mc.sleep(ms)` | waits; never past the time limit. With the mod's `reflexes` on, a sleep longer than 0.5 s wakes early and resolves to `"dead"`, `"damaged"` or `"low_air"` (otherwise `undefined`) |
 | `mc.args` | the JSON `args` passed to `run_script` / `run_skill` |
 
 Parameters are checked against the tool's schema before anything is sent, with the same defaults

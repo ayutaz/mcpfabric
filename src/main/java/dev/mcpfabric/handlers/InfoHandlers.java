@@ -71,6 +71,7 @@ public final class InfoHandlers {
 			o.add("groups", groups);
 			// Perception limited to the player's line of sight (no buried ores or hidden chests).
 			o.addProperty("visionLineOfSight", client && McpFabric.config().visionLineOfSight);
+			o.addProperty("reflexes", client && McpFabric.config().reflexes);
 			return o;
 		});
 	}

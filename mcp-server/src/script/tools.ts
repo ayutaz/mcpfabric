@@ -92,9 +92,23 @@ export class ScriptHost {
     this.active = { owner: opts.owner, abort };
     try {
       const timeoutMs = Math.min(opts.timeoutMs ?? this.limits.timeoutMs ?? DEFAULT_LIMITS.timeoutMs, MAX_TIMEOUT_MS);
+      // Asked once, at the first watched sleep, so scripts that never sleep long make no extra call.
+      let reflexes: Promise<boolean> | undefined;
+      const reflexesOn = () =>
+        (reflexes ??= this.bridge
+          .call("info.capabilities")
+          .then((c) => (c as { reflexes?: unknown } | undefined)?.reflexes === true)
+          .catch(() => false));
       const run = await runScript(
         code,
-        { call: (name, params) => this.invoke(name, params), helpers: this.helpers() },
+        {
+          call: (name, params) => this.invoke(name, params),
+          helpers: this.helpers(),
+          watchSleep: () => {
+            const check = sleepWatch(this.bridge);
+            return async () => ((await reflexesOn()) ? check() : undefined);
+          },
+        },
         { args: opts.args, limits: { ...this.limits, timeoutMs }, signal: abort.signal },
       );
       if (!run.ok && run.calls > 0) await this.releaseBody();
@@ -128,6 +142,24 @@ export interface ScriptToolDef {
   needsRuntime?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   run: (host: ScriptHost, owner: string, args: any) => Promise<{ text: string; isError?: boolean }>;
+}
+
+/**
+ * With the mod's `reflexes` on, a long `mc.sleep` wakes early when the player dies, takes damage,
+ * or runs low on air, so a script waiting out the night does not sleep through an attack.
+ */
+export function sleepWatch(bridge: Bridge): () => Promise<string | undefined> {
+  let last: number | undefined;
+  return async () => {
+    const s = (await bridge.call("player.getState")) as { health?: number; air?: number; maxAir?: number } | undefined;
+    if (!s || typeof s.health !== "number") return undefined;
+    if (s.health <= 0) return "dead";
+    const prev = last;
+    last = s.health;
+    if (prev !== undefined && s.health < prev) return "damaged";
+    if (typeof s.air === "number" && typeof s.maxAir === "number" && s.maxAir > 0 && s.air < s.maxAir / 3) return "low_air";
+    return undefined;
+  };
 }
 
 /** Compact report of a run, for model context. */
@@ -172,7 +204,7 @@ function runtimeOf(host: ScriptHost): AgentRuntime {
 const RUN_DESCRIPTION =
   "Run a short JavaScript program (ES2023 in a QuickJS sandbox: no Node, files, network or timers) that drives the game through the bridge, instead of many tool calls; top-level await and return work. " +
   "API: `await mc.call(method, params)` calls a bridge tool by name or RPC method (mc.call(\"get_self\") = mc.call(\"player.getState\")); every bridge tool is also a helper with the same parameters and checks, e.g. `await mc.get_self()`, `await mc.find_blocks({ center, radius, blockIds })`, `await mc.break_block({ x, y, z })`. supervised_* tools are refused. " +
-  "A failed call throws an Error with `code` (e.g. capability_disabled) and `data`; the mod's enable* locks apply. `mc.log(...)` / console.log record output, `await mc.sleep(ms)` waits, `mc.args` holds args. Return a JSON value as the result. " +
+  "A failed call throws an Error with `code` (e.g. capability_disabled) and `data`; the mod's enable* locks apply. `mc.log(...)` / console.log record output, `await mc.sleep(ms)` waits (with the mod's reflexes on it wakes early on death, damage or low air and resolves to \"dead\", \"damaged\" or \"low_air\"), `mc.args` holds args. Return a JSON value as the result. " +
   `Limits: timeoutSeconds (default ${DEFAULT_LIMITS.timeoutMs / 1000}, max ${MAX_TIMEOUT_MS / 1000}), ${DEFAULT_LIMITS.memoryBytes / 1048576} MiB memory, ${DEFAULT_LIMITS.maxCalls} calls, ${DEFAULT_LIMITS.maxSliceMs / 1000} s of computation between awaits, ${DEFAULT_LIMITS.maxLogChars / 1000} KB of log. ` +
   "A failed or stopped script makes no more calls and movement, navigation and mining are released. One script at a time, never during an agent job. Keep a program that worked with save_skill.";
 

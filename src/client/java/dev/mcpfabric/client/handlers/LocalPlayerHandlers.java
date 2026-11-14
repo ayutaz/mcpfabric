@@ -44,6 +44,8 @@ public final class LocalPlayerHandlers {
 			o.addProperty("sneaking", p.isShiftKeyDown());
 			o.addProperty("usingItem", p.isUsingItem());
 			o.addProperty("sleeping", p.isSleeping());
+			o.addProperty("reflex", dev.mcpfabric.client.BotController.get().reflexState());
+			o.addProperty("reflexSwimTicks", dev.mcpfabric.client.BotController.get().reflexSwimTicks());
 			o.addProperty("selectedSlot", selectedSlot(p.getInventory()));
 			//? if <1.21.11 {
 				o.addProperty("dimension", p.level().dimension().location().toString());
