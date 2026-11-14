@@ -83,6 +83,7 @@ final class ShelterReflex {
 	private int reseals;
 	private float lastHealth;
 	private long sealed;
+	private long dayStarts;
 	private String lastResult;
 	/** Diagnostics for the end event: why the spot under the feet did not do, and paths planned. */
 	private String here;
@@ -115,6 +116,10 @@ final class ShelterReflex {
 
 	long sealedCount() {
 		return sealed;
+	}
+
+	long dayStartCount() {
+		return dayStarts;
 	}
 
 	String lastResult() {
@@ -174,6 +179,7 @@ final class ShelterReflex {
 			return;
 		}
 		daytime = !night;
+		if (daytime) dayStarts++;
 		emit(daytime ? "start_day" : "start", p.blockPosition());
 		relocations = 0;
 		planned = 0;

@@ -48,7 +48,8 @@ All notable changes to this project are documented here. The format is based on
   events. `player.getState` reports `reflex: "shelter_<phase>"`, `reflexShelters` and `reflexShelterResult`.
   A daytime respawn with a monster within 16 blocks digs in too (`start_day`); that shelter is held for at
   least 100 ticks, then while a monster stays within 12 blocks for up to 2400 ticks (ends `clear` or
-  `day_timeout`), and by the night rules if dusk comes meanwhile.
+  `day_timeout`), and by the night rules if dusk comes meanwhile. `player.getState` counts these starts in
+  `reflexDayShelters`.
 - The client navigation world treats the empty placeholder chunks the client returns for chunks it has not
   received yet as unloaded instead of air.
 - `surroundings` lists each mob's and player's UUID, so `attack_entity` / `use_entity` work in

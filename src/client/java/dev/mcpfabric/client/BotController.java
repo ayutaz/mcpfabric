@@ -659,6 +659,11 @@ public final class BotController {
 		return shelter.sealedCount();
 	}
 
+	/** Times the shelter reflex dug in after a daytime respawn next to a monster ({@code start_day}). */
+	public synchronized long reflexDayShelters() {
+		return shelter.dayStartCount();
+	}
+
 	/** How the last shelter reflex ended ("morning", "damaged", "no_site", ...), or null. */
 	public synchronized String reflexShelterResult() {
 		return shelter.lastResult();
