@@ -69,6 +69,13 @@ public final class McpConfig {
 	 * default. It is its own lock and does not need the flags above, so they can stay off.
 	 */
 	public boolean enableSupervisedControl = false;
+	/**
+	 * Client only, for test rigs: when the server runs faster than 20 ticks per second ({@code /tick rate}),
+	 * tick the client at the same rate instead of vanilla's 20 tps floor, so the local player moves, mines and
+	 * swings in step with the accelerated world (a uniform fast-forward). Off by default; it changes nothing
+	 * while the server runs at 20 tps or slower.
+	 */
+	public boolean syncClientTickRate = false;
 	/** Save folders supervised_enter_world may open (disposable worlds). Empty: none. */
 	public List<String> supervisedWorlds = new ArrayList<>();
 	/** Command roots supervised_command may run; data ({...}) is refused in every command. */
