@@ -94,6 +94,9 @@ Fabric and NeoForge. 0.9.1 was never published; its fix ships here.
 - `stop_using_item` releases through the game mode, as letting go of the use key does, so the server
   sees the release: a drawn bow or crossbow shoots and a trident is thrown. It only cleared the
   client's using state before, so nothing was fired.
+- `perception.scan` in a dimension with a ceiling (the Nether) records each chunk's floor nearest the
+  player's feet height (a solid cell under two of air, not liquid or magma) as its `y`. The roof was
+  taken as the surface before, so no Nether chunk got a `y` and `explore` found no frontier there.
 
 ## [0.9.0] - 2026-11-06
 

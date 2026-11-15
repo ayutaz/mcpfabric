@@ -27,6 +27,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -244,7 +245,7 @@ public final class PerceptionHandlers {
 			JsonObject c = new JsonObject();
 			c.addProperty("cx", cx);
 			c.addProperty("cz", cz);
-			surface(level, chunk, cx * 16 + 8, cz * 16 + 8, c);
+			surface(level, chunk, cx * 16 + 8, cz * 16 + 8, (int) Math.floor(py), c);
 
 			double gx = Math.max(0, Math.max(cx * 16 - px, px - (cx * 16 + 16)));
 			double gz = Math.max(0, Math.max(cz * 16 - pz, pz - (cz * 16 + 16)));
@@ -345,10 +346,18 @@ public final class PerceptionHandlers {
 
 	/**
 	 * Standable surface at a column: feet height above the topmost motion-blocking block that is
-	 * not leaves or a log (tree canopies are not ground). Liquid surfaces and dimensions with a
-	 * ceiling (the Nether roof) get no {@code y}, so the runtime never plans to walk there.
+	 * not leaves or a log (tree canopies are not ground). Liquid surfaces get no {@code y}, so the
+	 * runtime never plans to walk there. In a dimension with a ceiling (the Nether roof) the top is the
+	 * roof, so the floor nearest the player's feet height is used instead ({@link #floorNear}).
 	 */
-	private static void surface(ClientLevel level, LevelChunk chunk, int x, int z, JsonObject out) {
+	private static void surface(ClientLevel level, LevelChunk chunk, int x, int z, int feetY, JsonObject out) {
+		if (level.dimensionType().hasCeiling()) {
+			BlockPos.MutableBlockPos f = new BlockPos.MutableBlockPos(x, feetY, z);
+			Integer y = floorNear(chunk, f, feetY);
+			if (y != null) out.addProperty("y", y);
+			level.getBiome(f.setY(y != null ? y : feetY)).unwrapKey().ifPresent(key -> out.addProperty("biome", resourceKeyId(key)));
+			return;
+		}
 		int top = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING, x & 15, z & 15);
 		int minY = minY(level);
 		BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos(x, top, z);
@@ -357,8 +366,33 @@ public final class PerceptionHandlers {
 			m.move(Direction.DOWN);
 			state = chunk.getBlockState(m);
 		}
-		if (state.getFluidState().isEmpty() && !level.dimensionType().hasCeiling()) out.addProperty("y", m.getY() + 1);
+		if (state.getFluidState().isEmpty()) out.addProperty("y", m.getY() + 1);
 		level.getBiome(m).unwrapKey().ifPresent(key -> out.addProperty("biome", resourceKeyId(key)));
+	}
+
+	/** Feet heights tried below and above the player's for {@link #floorNear}. */
+	static final int FLOOR_BELOW = 24, FLOOR_ABOVE = 16;
+
+	/**
+	 * Feet height of the standable cell nearest {@code feetY} in this column (a solid block that is not
+	 * liquid or magma under two cells of air), within {@link #FLOOR_BELOW} below and {@link #FLOOR_ABOVE}
+	 * above; null when there is none (a lava sea, solid netherrack). {@code m} ends at that cell.
+	 */
+	private static Integer floorNear(LevelChunk chunk, BlockPos.MutableBlockPos m, int feetY) {
+		for (int d = 0; d <= FLOOR_BELOW; d++) {
+			if (standable(chunk, m, feetY - d)) return feetY - d;
+			if (d > 0 && d <= FLOOR_ABOVE && standable(chunk, m, feetY + d)) return feetY + d;
+		}
+		return null;
+	}
+
+	private static boolean standable(LevelChunk chunk, BlockPos.MutableBlockPos m, int y) {
+		BlockState below = chunk.getBlockState(m.setY(y - 1));
+		if (!below.blocksMotion() || !below.getFluidState().isEmpty() || below.is(Blocks.MAGMA_BLOCK)) return false;
+		BlockState feet = chunk.getBlockState(m.setY(y));
+		BlockState head = chunk.getBlockState(m.setY(y + 1));
+		m.setY(y);
+		return feet.isAir() && head.isAir();
 	}
 
 	// --- entities -----------------------------------------------------------------------------
