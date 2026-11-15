@@ -19,7 +19,8 @@ All notable changes to this project are documented here. The format is based on
   there with `CANNOT_PLACE`), lies down
   (waiting for dusk if needed) and reports the game's refusal ("monsters nearby", "obstructed"), or
   gives up on a bed the game does not answer. Once asleep it tells the model to get the bed back at dawn
-  with `collect_blocks` (`break_block` alone leaves it on the ground). Click results are compared case-insensitively
+  with `collect_blocks` (`break_block` alone leaves it on the ground). It refuses to run in the Nether and
+  the End, where a bed explodes. Click results are compared case-insensitively
   (1.21.2+ prints `Success[...]`; on a dedicated server `placed` is null).
 - `get_self` / `player.getState` report `sleeping` (lying in a bed).
 - `agent_brief` names a bed standing within 24 blocks while the inventory holds none (the one slept in,

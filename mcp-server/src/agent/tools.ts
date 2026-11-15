@@ -806,7 +806,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "sleep_in_bed",
     title: "Sleep through the night (job)",
     description:
-      "Background job: use a bed within 24 blocks, or place one from your inventory next to you (in a dug shelter or a tunnel it first digs a bed-sized space beside you: two cells in a row and the two above them, never your roof), and lie down in it. Sleeping skips the night (no hostile mobs) and sets your respawn point there. Before dusk it waits and retries; 'monsters nearby' or 'obstructed' end the job with the game's message. Once asleep, do not move until morning.",
+      "Background job: use a bed within 24 blocks, or place one from your inventory next to you (in a dug shelter or a tunnel it first digs a bed-sized space beside you: two cells in a row and the two above them, never your roof), and lie down in it. Sleeping skips the night (no hostile mobs) and sets your respawn point there. Refused in the Nether and the End, where a bed explodes. Before dusk it waits and retries; 'monsters nearby' or 'obstructed' end the job with the game's message. Once asleep, do not move until morning.",
     inputSchema: {
       maxSeconds: z.number().int().min(10).max(300).optional().default(90).describe("How long to keep trying (waiting for dusk included)."),
       waitSeconds,

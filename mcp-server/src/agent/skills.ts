@@ -1182,6 +1182,10 @@ export async function bedLeftBehind(rt: AgentRuntime, self: Pos, counts: Record<
 export async function sleepInBed(rt: AgentRuntime, ctx: JobContext, opts: SleepOptions = {}): Promise<string> {
   const deadline = Date.now() + (opts.maxSeconds ?? 90) * 1000;
   const self0 = await rt.body.self();
+  // A bed explodes when used in the Nether or the End (power 5, sets fire): never place or click one there.
+  if (/:(the_nether|the_end)$/.test(self0.dimension ?? "")) {
+    throw new JobFailure(`beds explode in ${shortId(self0.dimension)}: do not use one here; wall yourself in instead, or sleep in the Overworld`);
+  }
   const scan = await rt.body.scan({ radius: 1 });
   let bed: (Pos & { id: string }) | undefined = scan.pois
     .filter((p) => BED.test(p.id) && distance(p, self0) <= 24)

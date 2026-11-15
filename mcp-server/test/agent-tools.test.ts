@@ -200,7 +200,16 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.deepEqual(world.mobs.map((m) => m.uuid), ["c1"]);
   },
   sleep_in_bed: async ({ world, tool }) => {
+    // A bed explodes in the Nether and the End: the job refuses before placing or clicking anything.
     world.give("minecraft:red_bed", 1, 12);
+    for (const dim of ["minecraft:the_nether", "minecraft:the_end"]) {
+      world.player.dimension = dim;
+      assert.match(await tool("sleep_in_bed", { waitSeconds: 30 }), /\[failed\][\s\S]*beds explode in the_(nether|end)/);
+    }
+    assert.ok(!world.calls.some((c) => c.startsWith("placeAt:")), "no bed was placed");
+    assert.equal(world.count("minecraft:red_bed"), 1);
+    world.player.dimension = "minecraft:overworld";
+    world.give("minecraft:red_bed", 0);
     const out = await tool("sleep_in_bed", { waitSeconds: 30 });
     assert.match(out, /\[done\][\s\S]*sleeping in the red_bed at[\s\S]*collect_blocks \{"blocks": \["red_bed"\], "count": 1\}/);
     assert.equal(world.count("minecraft:red_bed"), 0, "the bed was placed");
