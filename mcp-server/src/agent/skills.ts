@@ -252,7 +252,8 @@ export async function travel(rt: AgentRuntime, ctx: JobContext, target: Pos & { 
       failures++;
       ctx.log(`no path from ${fmtPos(self)} (${candidates.length} waypoints tried)`);
       if (failures >= 3) {
-        throw new JobFailure(`no route toward ${fmtPos(target)} from ${fmtPos(self)}: ${noRouteHint(moves)}`);
+        const up = target.y - self.y > 6 ? " (to climb out from underground, dig_up goes straight up)" : "";
+        throw new JobFailure(`no route toward ${fmtPos(target)} from ${fmtPos(self)}: ${noRouteHint(moves)}${up}`);
       }
       await ctx.sleep(400);
       continue;
@@ -270,6 +271,72 @@ export async function travel(rt: AgentRuntime, ctx: JobContext, target: Pos & { 
     if (segments % 3 === 0) await rt.observe({ radius: 6 }).catch(() => undefined);
   }
   throw new JobFailure(`gave up after ${segments} segments`);
+}
+
+// ----- dig up -----------------------------------------------------------------------------------
+
+export interface DigUpOptions {
+  maxBlocks?: number;
+  minHealth?: number;
+}
+
+/** Cells above the head checked for open space, and the hop the walker is asked to make. */
+const DIG_UP_PROBE = 12;
+const DIG_UP_HOP = 3;
+
+/**
+ * Straight up out of a cave or a deep shaft: dig the blocks overhead and pillar on throwaway blocks,
+ * in hops of a few blocks. One walker request for a target far above runs out of its node budget
+ * (it fans out sideways first, since a pillar costs more than a step), which left agents sealed in
+ * underground with no route anywhere. Stops at open space above (the surface, or a big cave), at the
+ * mapped surface height, or before water or lava overhead.
+ */
+export async function digUp(rt: AgentRuntime, ctx: JobContext, opts: DigUpOptions = {}): Promise<string> {
+  const maxBlocks = opts.maxBlocks ?? 80;
+  const minHealth = opts.minHealth ?? 6;
+  const world = await rt.world();
+  const start = await rt.body.self();
+  const y0 = Math.floor(start.y);
+  let failures = 0;
+  for (let i = 0; i < 200; i++) {
+    ctx.checkpoint();
+    const self = await vitals(rt, minHealth);
+    const x = Math.floor(self.x);
+    const y = Math.floor(self.y);
+    const z = Math.floor(self.z);
+    const climbed = y - y0;
+    ctx.progress(`at y ${y} (${climbed >= 0 ? "+" : ""}${climbed})`);
+    const above = await rt.body.blocks(Array.from({ length: DIG_UP_PROBE }, (_, k) => ({ x, y: y + 2 + k, z })));
+    const liquid = above.slice(0, DIG_UP_HOP).find((b) => /water|lava/.test(b.id ?? ""));
+    if (liquid) {
+      throw new JobFailure(`${shortId(liquid.id!)} at ${fmtPos(liquid)} right above you (climbed ${climbed}): dig up a column one block to the side instead`);
+    }
+    if (above.every((b) => b.loaded && (b.air || b.height === 0))) {
+      return `open space above at ${fmtPos(self)} after climbing ${climbed} blocks (the surface, or a big cave)`;
+    }
+    const { cx, cz } = chunkOf(self);
+    const surface = rt.map.get(world, self.dimension, cx, cz)?.y;
+    if (surface != null && y >= surface) return `at the mapped surface height (y ${surface}) at ${fmtPos(self)} after climbing ${climbed} blocks`;
+    if (climbed >= maxBlocks) return `climbed ${climbed} blocks to ${fmtPos(self)} (maxBlocks) without reaching open space`;
+    try {
+      await rt.body.pathTo({ x, y: y + DIG_UP_HOP, z }, { reachRadius: 0.8, timeoutSeconds: 60, allowDig: true, allowPillar: true, allowSwim: false });
+    } catch (err) {
+      if (!isNotFound(err)) throw err;
+      if (++failures >= 3) {
+        throw new JobFailure(`no way up from ${fmtPos(self)} (climbed ${climbed}): pillaring needs cobblestone or dirt in the hotbar, stone needs a pickaxe, and the walker never digs next to water or lava`);
+      }
+      await ctx.sleep(400);
+      continue;
+    }
+    const end = await waitNavigation(rt, ctx, 65_000);
+    const after = Math.floor((await rt.body.self()).y);
+    if (end === "reached" || after > y) {
+      failures = 0;
+    } else if (++failures >= 4) {
+      throw new JobFailure(`stuck at ${fmtPos(self)} (climbed ${climbed}): the hop up ended ${end}`);
+    }
+  }
+  throw new JobFailure("gave up after 200 hops");
 }
 
 // ----- explore ----------------------------------------------------------------------------------

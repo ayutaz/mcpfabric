@@ -28,6 +28,11 @@ All notable changes to this project are documented here. The format is based on
 - `perception.entities` gives a thrown eye of ender and an end crystal the kind `object` (they were
   `other`, which is left out unless asked for), with the eye's horizontal motion (`vx`, `vz`);
   `surroundings` lists them under `objects`, the eye with the direction it flies (`flying NE`).
+- `dig_up` agent job: straight up out of a cave, a shaft or a sealed shelter in hops of three blocks
+  (digging overhead, pillaring on throwaway blocks), stopping at open space above, at the mapped
+  surface height, after `maxBlocks` or before water or lava overhead. One walker request for a
+  target far above runs out of its node budget, so `travel_to` found no route out of deep
+  underground; its failure now points to `dig_up` when the target is more than 6 blocks up.
 - `visionLineOfSight` config flag (client, off by default) with `visionRange` (default 48): `perception.scan`
   only reports ores, searched blocks and points of interest the player can see (a face toward the eye open to
   air, glass or water, and a clear line to it); the scan result says `lineOfSight`. With it on, `observe` says

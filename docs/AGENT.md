@@ -82,7 +82,7 @@ that need them. It reads `perception.entities` and `perception.scan`, so it need
 
 ## Jobs
 
-`travel_to`, `explore`, `collect_blocks`, `craft_item`, `fight`, `sleep_in_bed` and `build_structure` start background jobs and return at once.
+`travel_to`, `dig_up`, `explore`, `collect_blocks`, `craft_item`, `fight`, `sleep_in_bed` and `build_structure` start background jobs and return at once.
 You can also pass `waitSeconds` to block for a while. Follow a job with `job_status`, which
 long-polls, and stop it with `job_cancel`. With the mod's `reflexes` on, a blocking wait (`waitSeconds` on a
 job tool or `job_status`) returns early when the player dies, takes damage (except during `fight`) or runs low
@@ -108,6 +108,11 @@ keep pushing the bot back until navigation gives up.
   cobblestone, dirt, netherrack or similar from the hotbar. Digging costs by break time, so it
   tunnels through dirt sooner than through stone. `allowDig`, `allowPillar` and `allowSwim` turn
   the moves off.
+- **dig_up**: goes straight up out of a cave, a shaft or a sealed shelter in hops of three blocks,
+  digging overhead and pillaring. A single walker request for a target far above runs out of the
+  node budget (it spreads sideways first, since a pillar costs more than a step), so `travel_to`
+  from deep underground can find no route. It stops at open space above (the surface or a big
+  cave), at the mapped surface height, after `maxBlocks`, or before water or lava overhead.
 - **explore**: moves to the best frontier chunk, meaning an unexplored chunk next to an explored
   one. It keeps its previous direction and avoids water, remembers unreachable frontiers, and
   reports new chunks, places and ores.

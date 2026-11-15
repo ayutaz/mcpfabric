@@ -166,6 +166,16 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.ok(Math.hypot(world.player.x - 30, world.player.z + 12) < 4, "the player arrived");
     await assert.rejects(tool("travel_to", { x: 5 }), /give x and z/);
   },
+  dig_up: async ({ world, tool }) => {
+    world.player.y = 40;
+    for (let y = 42; y < 64; y++) world.set({ x: 0, y, z: 0 }, "minecraft:stone");
+    const out = await tool("dig_up", { waitSeconds: 30 });
+    assert.match(out, /\[done\][\s\S]*open space above at 1 64 1 after climbing 24 blocks/);
+    assert.deepEqual(world.paths[0], { x: 0, y: 43, z: 0, reachRadius: 0.8, timeoutSeconds: 60, allowDig: true, allowPillar: true, allowSwim: false }, "a short hop, not the whole climb");
+    world.player.y = 40;
+    world.set({ x: 0, y: 43, z: 0 }, "minecraft:water");
+    assert.match(await tool("dig_up", { waitSeconds: 30 }), /\[failed\][\s\S]*water at 0 43 0 right above you/);
+  },
   explore: async ({ world, rt, tool }) => {
     const out = await tool("explore", { legs: 1, waitSeconds: 30 });
     assert.match(out, /\[done\]/);

@@ -30,7 +30,7 @@ import { formatMemory, MEMORY_KINDS, MEMORY_STATUSES, SentLedger, type Memory, t
 import { formatObserveReport } from "./observe.js";
 import { collectRecipes, formatPlan, plan } from "./planner.js";
 import type { AgentRuntime } from "./runtime.js";
-import { bedLeftBehind, buildStructure, collect, containerItems, craft, explore, fight, openContainerAt, recordContainer, sleepInBed, travel, verifyPlan } from "./skills.js";
+import { bedLeftBehind, buildStructure, collect, containerItems, craft, digUp, explore, fight, openContainerAt, recordContainer, sleepInBed, travel, verifyPlan } from "./skills.js";
 import { chunkOf, renderMap, type MapMarker } from "./worldmap.js";
 import { briefSkills } from "../script/skills.js";
 
@@ -751,6 +751,19 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         }),
       );
     },
+  },
+  {
+    name: "dig_up",
+    title: "Dig straight up to the surface (job)",
+    description:
+      "Background job: get out of a cave, a shaft or a sealed shelter by going straight up — digs the blocks overhead and pillars on cobblestone/dirt from the hotbar, a few blocks per hop. Stops at open space above (the surface or a big cave), at the mapped surface height, after maxBlocks, or before water or lava overhead. Use it when travel_to or explore find no path from underground (one long climb is beyond the walker's search).",
+    inputSchema: {
+      maxBlocks: z.number().int().min(1).max(200).optional().default(80),
+      waitSeconds,
+    },
+    annotations: WRITE,
+    run: async (rt, session, args) =>
+      startJob(rt, session, "dig_up", `up to ${args.maxBlocks} blocks`, args.waitSeconds, (ctx) => digUp(rt, ctx, { maxBlocks: args.maxBlocks })),
   },
   {
     name: "explore",
