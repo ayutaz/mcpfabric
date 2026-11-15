@@ -175,6 +175,11 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     world.player.y = 40;
     world.set({ x: 0, y: 43, z: 0 }, "minecraft:water");
     assert.match(await tool("dig_up", { waitSeconds: 30 }), /\[failed\][\s\S]*water at 0 43 0 right above you/);
+    world.set({ x: 0, y: 43, z: 0 }, "minecraft:stone");
+    world.unreachable.add("0,43,0");
+    const stuck = await tool("dig_up", { waitSeconds: 30 });
+    assert.match(stuck, /no way up from 1 40 1 \(climbed 0\): you have no pickaxe for the stone overhead: craft one first/);
+    assert.match(stuck, /you have no pillar blocks \(cobblestone, dirt...\): mine some first/);
   },
   explore: async ({ world, rt, tool }) => {
     const out = await tool("explore", { legs: 1, waitSeconds: 30 });

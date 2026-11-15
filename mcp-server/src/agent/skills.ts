@@ -283,6 +283,24 @@ export interface DigUpOptions {
 /** Cells above the head checked for open space, and the hop the walker is asked to make. */
 const DIG_UP_PROBE = 12;
 const DIG_UP_HOP = 3;
+/** The walker's pillar blocks (LevelNavWorld.THROWAWAY), taken from the hotbar only. */
+const PILLAR_BLOCK = /^minecraft:(cobblestone|cobbled_deepslate|dirt|netherrack|andesite|diorite|granite|tuff|blackstone)$/;
+
+/** What keeps the walker from climbing, from the inventory: no pickaxe for stone, no pillar blocks in the hotbar. */
+async function climbBlockers(rt: AgentRuntime, above: BlockProbe[]): Promise<string> {
+  const inv = await rt.body.inventory();
+  const all = [...inv.hotbar, ...inv.main];
+  const missing: string[] = [];
+  if (above.some((b) => b.requiresTool) && !all.some((s) => /_pickaxe$/.test(s.id))) {
+    missing.push("you have no pickaxe for the stone overhead: craft one first (a stone_pickaxe takes 3 cobblestone and 2 sticks)");
+  }
+  if (!inv.hotbar.some((s) => PILLAR_BLOCK.test(s.id))) {
+    missing.push(all.some((s) => PILLAR_BLOCK.test(s.id))
+      ? "your pillar blocks (cobblestone, dirt...) are not in the hotbar: move some there"
+      : "you have no pillar blocks (cobblestone, dirt...): mine some first");
+  }
+  return missing.length > 0 ? missing.join("; ") : "the walker never digs next to water or lava or under falling sand and gravel: try a column one block to the side";
+}
 
 /**
  * Straight up out of a cave or a deep shaft: dig the blocks overhead and pillar on throwaway blocks,
@@ -306,7 +324,7 @@ export async function digUp(rt: AgentRuntime, ctx: JobContext, opts: DigUpOption
     const z = Math.floor(self.z);
     const climbed = y - y0;
     ctx.progress(`at y ${y} (${climbed >= 0 ? "+" : ""}${climbed})`);
-    const above = await rt.body.blocks(Array.from({ length: DIG_UP_PROBE }, (_, k) => ({ x, y: y + 2 + k, z })));
+    const above = await rt.body.blocks(Array.from({ length: DIG_UP_PROBE }, (_, k) => ({ x, y: y + 2 + k, z })), { tool: true });
     const liquid = above.slice(0, DIG_UP_HOP).find((b) => /water|lava/.test(b.id ?? ""));
     if (liquid) {
       throw new JobFailure(`${shortId(liquid.id!)} at ${fmtPos(liquid)} right above you (climbed ${climbed}): dig up a column one block to the side instead`);
@@ -323,7 +341,7 @@ export async function digUp(rt: AgentRuntime, ctx: JobContext, opts: DigUpOption
     } catch (err) {
       if (!isNotFound(err)) throw err;
       if (++failures >= 3) {
-        throw new JobFailure(`no way up from ${fmtPos(self)} (climbed ${climbed}): pillaring needs cobblestone or dirt in the hotbar, stone needs a pickaxe, and the walker never digs next to water or lava`);
+        throw new JobFailure(`no way up from ${fmtPos(self)} (climbed ${climbed}): ${await climbBlockers(rt, above.slice(0, DIG_UP_HOP))}`);
       }
       await ctx.sleep(400);
       continue;

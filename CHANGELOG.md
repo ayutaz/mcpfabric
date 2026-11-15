@@ -33,6 +33,8 @@ All notable changes to this project are documented here. The format is based on
   surface height, after `maxBlocks` or before water or lava overhead. One walker request for a
   target far above runs out of its node budget, so `travel_to` found no route out of deep
   underground; its failure now points to `dig_up` when the target is more than 6 blocks up.
+  When the walker finds no hop, `dig_up` says what is missing: a pickaxe for the stone overhead, or
+  pillar blocks in the hotbar.
 - `visionLineOfSight` config flag (client, off by default) with `visionRange` (default 48): `perception.scan`
   only reports ores, searched blocks and points of interest the player can see (a face toward the eye open to
   air, glass or water, and a clear line to it); the scan result says `lineOfSight`. With it on, `observe` says
