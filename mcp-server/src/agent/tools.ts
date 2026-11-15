@@ -243,7 +243,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "surroundings",
     title: "What is around me, relative to my view",
     description:
-      "Nearby mobs, players, dropped items and points of interest (containers, workstations, beds, portals), and optionally blocks you name, described relative to where you look: \"zombie: 5 ahead, 2 right · 5.4 m (1 o'clock)\". Easier to act on than world coordinates; each line still ends with the coordinates for tools that need them. Client side, works in multiplayer; needs enableVision.",
+      "Nearby mobs, players, dropped items, objects (a thrown eye of ender with the direction it flies, end crystals) and points of interest (containers, workstations, beds, portals), and optionally blocks you name, described relative to where you look: \"zombie: 5 ahead, 2 right · 5.4 m (1 o'clock)\". Easier to act on than world coordinates; each line still ends with the coordinates for tools that need them. Client side, works in multiplayer; needs enableVision.",
     inputSchema: {
       radius: z.number().int().min(4).max(48).optional().default(16).describe("Search radius in blocks."),
       find: z.array(z.string()).max(8).optional().describe('Block ids to locate as well, e.g. ["oak_log","iron_ore"].'),
@@ -263,13 +263,14 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         ["players", entities.filter((e) => e.kind === "player")],
         ["passive", entities.filter((e) => e.kind === "passive")],
         ["items", entities.filter((e) => e.kind === "item")],
+        ["objects", entities.filter((e) => e.kind === "object")],
       ];
       for (const [name, list] of groups) {
         if (list.length === 0) continue;
         lines.push(`${name}:`);
         for (const e of list.slice(0, args.limit)) {
           const label = e.item ? `${e.item.count} ${shortId(e.item.id)}` : `${shortId(e.type)}${e.health !== undefined ? ` ${e.health.toFixed(0)}hp` : ""}`;
-          lines.push(line(label, e) + (e.item ? "" : ` · uuid ${e.uuid}`));
+          lines.push(line(label, e) + (e.item ? "" : ` · uuid ${e.uuid}`) + flying(e));
         }
         if (list.length > args.limit) lines.push(`  +${list.length - args.limit} more`);
       }
@@ -920,6 +921,12 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     },
   },
 ];
+
+/** " · flying NE" for a moving eye of ender: it flies toward the nearest stronghold. */
+function flying(e: { vx?: number; vz?: number }): string {
+  if (e.vx === undefined || e.vz === undefined || Math.hypot(e.vx, e.vz) < 0.01) return "";
+  return ` · flying ${compass(e.vx, e.vz)}`;
+}
 
 function compass(dx: number, dz: number): string {
   const deg = (Math.atan2(dx, -dz) * 180) / Math.PI;

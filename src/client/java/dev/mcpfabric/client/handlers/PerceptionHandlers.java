@@ -21,6 +21,8 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
+import net.minecraft.world.entity.projectile.EyeOfEnder;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
@@ -402,6 +404,9 @@ public final class PerceptionHandlers {
 		if (e instanceof Player) return "player";
 		if (e instanceof Enemy) return "hostile";
 		if (e instanceof LivingEntity) return "passive";
+		// Objects the End stages are about: a thrown eye of ender flies toward the stronghold, and the
+		// crystals heal the dragon. Other non-living entities (arrows, orbs, boats) stay "other".
+		if (e instanceof EyeOfEnder || e instanceof EndCrystal) return "object";
 		return "other";
 	}
 
@@ -421,6 +426,10 @@ public final class PerceptionHandlers {
 			o.addProperty("z", e.getZ());
 			o.addProperty("distance", Math.sqrt(e.distanceToSqr(player)));
 			if (e instanceof LivingEntity living) o.addProperty("health", living.getHealth());
+			if (e instanceof EyeOfEnder) {
+				o.addProperty("vx", e.getDeltaMovement().x);
+				o.addProperty("vz", e.getDeltaMovement().z);
+			}
 			if (e instanceof ItemEntity item) {
 				JsonObject stack = new JsonObject();
 				stack.addProperty("id", String.valueOf(BuiltInRegistries.ITEM.getKey(item.getItem().getItem())));

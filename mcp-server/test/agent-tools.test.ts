@@ -78,6 +78,8 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.match(out, /^facing south at 1 64 1 · on ground/);
     assert.match(out, /hostile:\n  zombie 20hp: 5 ahead, 3 left · 5\.8 m \(11 o'clock\) · 4 64 6 · uuid z1$/m);
     assert.match(out, /places:\n  crafting_table: 5 behind, 1 right · 4\.5 m \(6 o'clock\) · 0 64 -4/);
+    world.mobs.push({ uuid: "e1", type: "minecraft:eye_of_ender", kind: "object", x: 1.5, y: 66, z: 3.5, health: 0, vx: 0.3, vz: -0.3 });
+    assert.match(await tool("surroundings", { radius: 16 }), /objects:\n  eye_of_ender: .* · uuid e1 · flying NE$/m);
   },
   // memory
   remember: async ({ rt, tool }) => {

@@ -33,7 +33,7 @@ export class FakeWorld implements Bridge {
   /** Dropped items lying in the world. */
   drops: { uuid: string; id: string; count: number; x: number; y: number; z: number }[] = [];
   /** Hostile mobs around the player. */
-  mobs: { uuid: string; type: string; x: number; y: number; z: number; health: number; kind?: string }[] = [];
+  mobs: { uuid: string; type: string; x: number; y: number; z: number; health: number; kind?: string; vx?: number; vz?: number }[] = [];
   /** Game messages for events.getRecent; `sleepRefusal` makes a bed answer with that message instead. */
   events: { id: number; type: string; data: Record<string, unknown> }[] = [];
   sleepRefusal?: string;
@@ -206,7 +206,7 @@ export class FakeWorld implements Bridge {
         const kinds: string[] = a.kinds ?? [];
         const all = [
           ...this.drops.map((d) => ({ uuid: d.uuid, type: "minecraft:item", kind: "item", x: d.x, y: d.y, z: d.z, item: { id: d.id, count: d.count } })),
-          ...this.mobs.map((m) => ({ uuid: m.uuid, type: m.type, kind: m.kind ?? "hostile", x: m.x, y: m.y, z: m.z, health: m.health })),
+          ...this.mobs.map((m) => ({ uuid: m.uuid, type: m.type, kind: m.kind ?? "hostile", x: m.x, y: m.y, z: m.z, health: m.kind === "object" ? undefined : m.health, vx: m.vx, vz: m.vz })),
         ]
           .map((e) => ({ ...e, distance: Math.hypot(e.x - p.x, e.y - p.y, e.z - p.z) }))
           .filter((e) => e.distance <= (a.radius ?? 16) && (kinds.length === 0 || kinds.includes(e.kind)))

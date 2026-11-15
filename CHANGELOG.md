@@ -25,6 +25,9 @@ All notable changes to this project are documented here. The format is based on
 - `get_self` / `player.getState` report `sleeping` (lying in a bed).
 - `agent_brief` names a bed standing within 24 blocks while the inventory holds none (the one slept in,
   left behind when a new session starts in the morning) and says to take it with `collect_blocks`.
+- `perception.entities` gives a thrown eye of ender and an end crystal the kind `object` (they were
+  `other`, which is left out unless asked for), with the eye's horizontal motion (`vx`, `vz`);
+  `surroundings` lists them under `objects`, the eye with the direction it flies (`flying NE`).
 - `visionLineOfSight` config flag (client, off by default) with `visionRange` (default 48): `perception.scan`
   only reports ores, searched blocks and points of interest the player can see (a face toward the eye open to
   air, glass or water, and a clear line to it); the scan result says `lineOfSight`. With it on, `observe` says

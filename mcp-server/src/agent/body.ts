@@ -90,8 +90,11 @@ export interface BlockProbe extends Pos {
 export interface NearbyEntity extends Pos {
   uuid: string;
   type: string;
-  kind: "item" | "player" | "hostile" | "passive" | "other";
+  kind: "item" | "player" | "hostile" | "passive" | "object" | "other";
   distance: number;
+  /** Horizontal motion of a thrown eye of ender (blocks per tick). */
+  vx?: number;
+  vz?: number;
   health?: number;
   item?: { id: string; count: number };
 }
