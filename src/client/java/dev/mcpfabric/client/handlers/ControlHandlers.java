@@ -6,6 +6,7 @@ import dev.mcpfabric.bridge.RpcRouter;
 import dev.mcpfabric.handlers.support.Gates;
 import dev.mcpfabric.client.BotController;
 import dev.mcpfabric.client.ClientMc;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 
@@ -73,10 +74,17 @@ public final class ControlHandlers {
 			return Json.ok("using");
 		}));
 
+		// Release the way the game does when the use key goes up (Minecraft.handleKeybinds): through the
+		// game mode, which tells the server, so a drawn bow or crossbow shoots and a trident is thrown.
+		// LocalPlayer.stopUsingItem alone only cleared the client's state: the server never saw the release.
 		router.register("control.stopUsing", ctx -> ClientMc.call(() -> {
-			ClientMc.mc().options.keyUse.setDown(false);
-			ClientMc.player().stopUsingItem();
-			return Json.ok("stopped using");
+			Minecraft mc = ClientMc.mc();
+			mc.options.keyUse.setDown(false);
+			LocalPlayer p = ClientMc.player();
+			if (!p.isUsingItem()) return Json.ok("not using an item");
+			if (mc.gameMode != null) mc.gameMode.releaseUsingItem(p);
+			else p.stopUsingItem();
+			return Json.ok("released");
 		}));
 	}
 

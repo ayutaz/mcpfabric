@@ -500,7 +500,7 @@ export const TOOLS: ToolDef[] = [
     name: "stop_using_item",
     method: "control.stopUsing",
     title: "Stop using held item",
-    description: "Client-only. Release the right-click use action.",
+    description: "Client-only. Release the right-click use action: a drawn bow or crossbow shoots (hold it about 1 second for full power), a trident is thrown.",
     inputSchema: {},
     annotations: STEER,
   },

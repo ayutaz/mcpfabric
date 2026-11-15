@@ -91,6 +91,9 @@ Fabric and NeoForge. 0.9.1 was never published; its fix ships here.
 - `npx -y mcpfabric-mcp-server` from the README failed with "could not determine executable to
   run": the package now has a `mcpfabric-mcp-server` command next to `mcpfabric`.
 - `open_dashboard`: a long job line wraps instead of being cut off.
+- `stop_using_item` releases through the game mode, as letting go of the use key does, so the server
+  sees the release: a drawn bow or crossbow shoots and a trident is thrown. It only cleared the
+  client's using state before, so nothing was fired.
 
 ## [0.9.0] - 2026-11-06
 
