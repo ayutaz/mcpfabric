@@ -53,6 +53,10 @@ public final class BotController {
 	private long reflexSwimTicks;
 	/** Reflex: digs in after a respawn at night (see {@link ShelterReflex}). */
 	private final ShelterReflex shelter = new ShelterReflex(this);
+	/** Reflex: swims to air or digs an air pocket when the air runs low (see {@link AirReflex}). */
+	private final AirReflex air = new AirReflex(this);
+	/** The air reflex sinks toward its way out: sneak instead of the swim reflex's jump. */
+	private boolean airSink;
 	private LocalPlayer lastPlayer;
 	private boolean lastDead;
 	/** The running navigation belongs to the shelter reflex: the low-air stop leaves it alone. */
@@ -219,6 +223,12 @@ public final class BotController {
 					stopNavigationInternal("low_air"); // surface first; the caller can path again afterwards
 				}
 			}
+			if (reflexes && !shelter.active()) {
+				air.tick(mc, p, reflexSwim);
+			} else {
+				air.cancel();
+			}
+			if (air.active() && path != null && !reflexNav) stopNavigationInternal("low_air");
 			if (path != null) {
 				steer(mc, p);
 			}
@@ -229,7 +239,7 @@ public final class BotController {
 				navMining = false;
 			}
 			boolean driving = fwd || back || left || right || jumpHeld || navJump || sneak || sprint || jumpOnceTicks > 0 || path != null
-					|| reflexSwim;
+					|| reflexSwim || air.active();
 			if (driving) {
 				applyKeys(mc.options);
 				drivingKeys = true;
@@ -250,9 +260,9 @@ public final class BotController {
 		o.keyDown.setDown(back);
 		o.keyLeft.setDown(left);
 		o.keyRight.setDown(right);
-		o.keyShift.setDown(sneak && !reflexSwim); // sneaking sinks in water
+		o.keyShift.setDown((sneak && !reflexSwim) || airSink); // sneaking sinks in water
 		o.keySprint.setDown(sprint);
-		o.keyJump.setDown(jumpHeld || navJump || jumpOnceTicks > 0 || reflexSwim);
+		o.keyJump.setDown((jumpHeld || navJump || jumpOnceTicks > 0 || reflexSwim) && !airSink);
 	}
 
 	private void releaseKeys(Options o) {
@@ -582,7 +592,7 @@ public final class BotController {
 		navJump = p.isInWater();
 	}
 
-	private static void face(LocalPlayer p, double dx, double dz) {
+	static void face(LocalPlayer p, double dx, double dz) {
 		float yaw = (float) (Mth.atan2(dz, dx) * (180.0 / Math.PI)) - 90.0F;
 		p.setYRot(yaw);
 		p.setYHeadRot(yaw);
@@ -647,11 +657,12 @@ public final class BotController {
 
 	/**
 	 * Reflex state for {@code player.getState}: {@code shelter_<phase>} while the shelter reflex runs,
-	 * "swim_up" while the swim reflex holds jump, else null.
+	 * "air_escape" while the air reflex swims to air or digs an air pocket, "swim_up" while the swim
+	 * reflex holds jump, else null.
 	 */
 	public synchronized String reflexState() {
 		String s = shelter.state();
-		return s != null ? s : reflexSwim ? "swim_up" : null;
+		return s != null ? s : air.active() ? "air_escape" : reflexSwim ? "swim_up" : null;
 	}
 
 	/** Times the shelter reflex sealed the player in since the client started. */
@@ -747,6 +758,35 @@ public final class BotController {
 		reflexMining = false;
 		reflexMiningResult = null;
 		fwd = back = left = right = jumpHeld = sneak = sprint = false;
+	}
+
+	// --- for AirReflex (called on the client tick, under this lock) -------------------------
+
+	/** Swims along (dx, dz); {@code sink} holds sneak instead of jump to go down. */
+	void airSwim(LocalPlayer p, double dx, double dz, boolean forward, boolean sink) {
+		face(p, dx, dz);
+		fwd = forward;
+		back = left = right = jumpHeld = sneak = sprint = false;
+		airSink = sink;
+	}
+
+	/** Holds still; the swim reflex keeps jump down. */
+	void airHold(LocalPlayer p) {
+		fwd = back = left = right = jumpHeld = sneak = sprint = false;
+		airSink = false;
+	}
+
+	/** The air reflex ended: stop its mining and keys. */
+	void airRelease() {
+		if (reflexMining && miningPos != null) {
+			Minecraft mc = Minecraft.getInstance();
+			if (mc.gameMode != null) mc.gameMode.stopDestroyBlock();
+			miningPos = null;
+		}
+		reflexMining = false;
+		reflexMiningResult = null;
+		fwd = back = left = right = jumpHeld = sneak = sprint = false;
+		airSink = false;
 	}
 
 	/** Client ticks the swim reflex has held jump since the client started. */

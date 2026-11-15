@@ -196,7 +196,9 @@ searched blocks and points of interest then only include blocks within `visionRa
 from the eye to one of their faces, so buried ores and hidden chests stay hidden (for fair-play test rigs).
 
 `reflexes` (client, off by default) adds survival reflexes that run every client tick, without waiting for
-the model: under water the bot swims up, and below a third of its air it cancels navigation. In survival,
+the model: under water the bot swims up, and below a third of its air it cancels navigation; below half of
+its air it swims to the nearest air through water (also sideways and down, out of a flooded cave) or digs
+an air pocket into the ceiling over a sealed one (`reflex_air` events). In survival,
 `break_block` then refuses (`unsafe_dig_fluid`) to dig out the block under the player's feet (its own column,
 up to 3 blocks down) when water or lava touches it; pass `allowFluid: true` to dig anyway. A script's
 `mc.sleep`, and an agent tool blocking on a job (`waitSeconds`, `job_status`), wake early on death, damage or

@@ -401,7 +401,7 @@ export const TOOLS: ToolDef[] = [
     method: "player.getState",
     title: "Get local player state",
     description:
-      "Client-only. Full state of YOUR player: position, yaw/pitch, motion, health, food, saturation, air, XP, game mode, on-ground, in-fluid, selected hotbar slot, dimension, sleeping (lying in a bed). With the client's reflexes on: reflex (\"swim_up\", or \"shelter_<phase>\" while the respawn shelter reflex digs in for the night or after a daytime respawn next to monsters; movement commands are refused until it ends), reflexShelters, reflexDayShelters (of those starts, the daytime ones), reflexShelterResult.",
+      "Client-only. Full state of YOUR player: position, yaw/pitch, motion, health, food, saturation, air, XP, game mode, on-ground, in-fluid, selected hotbar slot, dimension, sleeping (lying in a bed). With the client's reflexes on: reflex (\"swim_up\", \"air_escape\" while it swims to air or digs an air pocket with low air, or \"shelter_<phase>\" while the respawn shelter reflex digs in for the night or after a daytime respawn next to monsters; movement commands are refused until it ends), reflexShelters, reflexDayShelters (of those starts, the daytime ones), reflexShelterResult.",
     inputSchema: {},
     annotations: READ,
   },

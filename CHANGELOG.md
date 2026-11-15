@@ -8,6 +8,15 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- Air reflex (with `reflexes` on): under water with half of the air gone, the bot searches through water
+  and air (never lava) for the nearest cell where its head is out of the water and swims there, sinking
+  with sneak where the way goes down; over a sealed flooded cave, or where it is quicker, it digs an air
+  pocket into the ceiling instead (a block over the head that breaks in up to 30 ticks with the best
+  hotbar item on dry ground, with no water or lava beside or above it and no sand or gravel on top).
+  Holding jump alone drowned agents under rock ceilings, and the walking planner, which never swims
+  under water, found no way out of a flooded cave at all (two agents drowned so within two hours). It
+  cancels navigation as the low-air stop does, reports `reflex: "air_escape"` in `player.getState` and
+  its start, digging and end as `reflex_air` events.
 - `dig_in` tool (`control.shelter`): starts the respawn shelter reflex on request, from where the player
   stands (needs `reflexes`): dry ground nearby, three blocks down, sealed, held until morning once no
   monster is close. Agents that dug their own night holes were killed through gaps they left (16 of 35
