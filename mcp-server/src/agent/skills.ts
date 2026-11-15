@@ -1264,6 +1264,25 @@ export async function bedLeftBehind(rt: AgentRuntime, self: Pos, counts: Record<
     `take it with collect_blocks {"blocks": ["${shortId(bed.id)}"], "count": 1} before you move on, or you have no bed next night`;
 }
 
+/**
+ * Basic tools missing from the inventory, for agent_brief. A death drops everything, and in the
+ * 24-hour runs agents then went on toward iron for hours without a pickaxe, and slept no more without
+ * a bed: nothing asked for them again once those steps were behind. The bed line waits for a pickaxe
+ * (a fresh start gathers wood and stone first) and for the Overworld (beds explode elsewhere).
+ */
+export function missingBasics(counts: Record<string, number>, dimension: string | undefined, bedNearby: boolean): string | undefined {
+  const has = (re: RegExp) => Object.keys(counts).some((id) => re.test(id) && (counts[id] ?? 0) > 0);
+  const out: string[] = [];
+  const pickaxe = has(/_pickaxe$/);
+  if (!pickaxe) {
+    out.push("no pickaxe (stone, coal and iron need one): craft it first — wooden_pickaxe from 3 planks and 2 sticks, stone_pickaxe from 3 cobblestone and 2 sticks");
+  }
+  if (pickaxe && !has(BED) && !bedNearby && !/:(the_nether|the_end)$/.test(dimension ?? "")) {
+    out.push("no bed (lost when you died?): make one by day to sleep through the nights — 3 wool of one color (fight types [\"sheep\"]) and 3 planks");
+  }
+  return out.length > 0 ? `missing: ${out.join(" · ")}` : undefined;
+}
+
 export async function sleepInBed(rt: AgentRuntime, ctx: JobContext, opts: SleepOptions = {}): Promise<string> {
   const deadline = Date.now() + (opts.maxSeconds ?? 90) * 1000;
   const self0 = await rt.body.self();

@@ -25,6 +25,9 @@ All notable changes to this project are documented here. The format is based on
 - `get_self` / `player.getState` report `sleeping` (lying in a bed).
 - `agent_brief` names a bed standing within 24 blocks while the inventory holds none (the one slept in,
   left behind when a new session starts in the morning) and says to take it with `collect_blocks`.
+- `agent_brief` lists basic tools the inventory lacks (`missing:`): a pickaxe, and once there is one, a
+  bed in the Overworld when none stands nearby. A death drops everything, and agents went on for hours
+  without either once those steps were done.
 - `perception.entities` gives a thrown eye of ender and an end crystal the kind `object` (they were
   `other`, which is left out unless asked for), with the eye's horizontal motion (`vx`, `vz`);
   `surroundings` lists them under `objects`, the eye with the direction it flies (`flying NE`).

@@ -30,7 +30,7 @@ import { formatMemory, MEMORY_KINDS, MEMORY_STATUSES, SentLedger, type Memory, t
 import { formatObserveReport } from "./observe.js";
 import { collectRecipes, formatPlan, plan } from "./planner.js";
 import type { AgentRuntime } from "./runtime.js";
-import { bedLeftBehind, buildStructure, collect, containerItems, craft, digUp, explore, fight, openContainerAt, recordContainer, sleepInBed, travel, verifyPlan } from "./skills.js";
+import { bedLeftBehind, buildStructure, collect, containerItems, craft, digUp, explore, fight, missingBasics, openContainerAt, recordContainer, sleepInBed, travel, verifyPlan } from "./skills.js";
 import { chunkOf, renderMap, type MapMarker } from "./worldmap.js";
 import { briefSkills } from "../script/skills.js";
 
@@ -150,7 +150,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "agent_brief",
     title: "Agent brief (resume here)",
     description:
-      "One-call situation report for resuming work after a restart or context loss: world id, your position/vitals/inventory, the active goal path, the running job, saved script skills, remembered places nearby, a bed left standing within 24 blocks while you carry none, and a small map. Call this first in a new session.",
+      "One-call situation report for resuming work after a restart or context loss: world id, your position/vitals/inventory, the active goal path, the running job, saved script skills, remembered places nearby, a bed left standing within 24 blocks while you carry none, basic tools you lack (pickaxe, bed), and a small map. Call this first in a new session.",
     inputSchema: {},
     annotations: READ,
     run: async (rt, session) => {
@@ -164,6 +164,8 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       ];
       const bed = await bedLeftBehind(rt, at, counts).catch(() => undefined);
       if (bed) lines.push(bed);
+      const missing = missingBasics(counts, at.dim, bed !== undefined);
+      if (missing) lines.push(missing);
       const next = rt.goals.next(world);
       const goals = rt.goals.all(world);
       if (next) {

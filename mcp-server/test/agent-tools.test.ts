@@ -54,6 +54,12 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.match(brief, /inventory: oak_log×3/);
     assert.match(brief, /goal: #1 Build a hut/);
     assert.match(brief, /map: nothing mapped here yet/);
+    assert.match(brief, /missing: no pickaxe \(stone, coal and iron need one\)/);
+    assert.doesNotMatch(brief, /no bed/, "a fresh start gathers wood and stone before the bed");
+    world.give("minecraft:stone_pickaxe", 1);
+    assert.match(await tool("agent_brief"), /missing: no bed \(lost when you died\?\)/);
+    world.give("minecraft:white_bed", 1);
+    assert.doesNotMatch(await tool("agent_brief"), /missing:/);
   },
   observe: async ({ world, rt, tool }) => {
     world.set({ x: 3, y: 64, z: 3 }, "minecraft:crafting_table").set({ x: 8, y: 60, z: 8 }, "minecraft:coal_ore");
