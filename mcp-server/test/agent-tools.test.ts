@@ -256,6 +256,17 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     const picked = await stone.tool("sleep_in_bed", { waitSeconds: 50 });
     assert.match(picked, /\[done\][\s\S]*digging a bed-sized space \(4 blocks\)[\s\S]*placed white_bed at/);
     assert.equal(stone.world.count("minecraft:white_bed"), 0, "the bed was placed");
+    // Standing at z = 0.71 the hitbox reaches 0.01 into the free cell to the south (x2-night-rx5-2h@v3):
+    // that cell cannot take the bed, so it is not picked as the bed-sized space either.
+    const edge = setup();
+    for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) for (let y = 64; y <= 65; y++) {
+      if (x !== 0 || z < 0) edge.world.set({ x, y, z }, "minecraft:dirt");
+    }
+    edge.world.player.z = 0.71;
+    edge.world.give("minecraft:white_bed", 1, 12);
+    const clear = await edge.tool("sleep_in_bed", { waitSeconds: 50 });
+    assert.match(clear, /\[done\][\s\S]*no bed room to the south: you stand over its edge[\s\S]*digging a bed-sized space \(4 blocks\)[\s\S]*placed white_bed at 0 64 -1 facing north/);
+    assert.ok(!edge.world.calls.includes("placeAt:0,64,1"), "no click on the cell the player touches");
   },
   craft_item: async ({ world, tool }) => {
     world.give("minecraft:oak_planks", 2);

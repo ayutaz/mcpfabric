@@ -14,7 +14,9 @@ All notable changes to this project are documented here. The format is based on
 - `sleep_in_bed` agent job: uses a bed within 24 blocks or places one from the inventory (with no room
   next to you, as in a dug shelter, it first digs a bed-sized space beside you: two cells in a row at your
   feet level and the two above them, skipping directions next to water or lava, then takes the bed
-  back in hand; a failed placement reports the answer for a free cell rather than a wall's `OCCUPIED`), lies down
+  back in hand; a failed placement reports the answer for a free cell rather than a wall's `OCCUPIED`;
+  cells the player's hitbox reaches into are neither clicked nor dug for, since the game refuses a bed
+  there with `CANNOT_PLACE`), lies down
   (waiting for dusk if needed) and reports the game's refusal ("monsters nearby", "obstructed"), or
   gives up on a bed the game does not answer. Once asleep it tells the model to get the bed back at dawn
   with `collect_blocks` (`break_block` alone leaves it on the ground). Click results are compared case-insensitively

@@ -278,6 +278,11 @@ export class FakeWorld implements Bridge {
         if (!held) throw new BridgeError({ code: "bad_request", message: "The main hand holds no block" });
         if (Math.hypot(a.x + 0.5 - p.x, a.y + 0.5 - (p.y + 1.62), a.z + 0.5 - p.z) > 5.5) return { result: "OUT_OF_REACH", placed: false };
         if (this.blockAt(a as P)) return { result: "OCCUPIED", placed: false };
+        // The game refuses a block whose cell the player's hitbox (0.6 wide, 1.8 high) reaches into.
+        const e = 1e-6;
+        if (p.x + 0.3 > a.x + e && p.x - 0.3 < a.x + 1 - e && p.z + 0.3 > a.z + e && p.z - 0.3 < a.z + 1 - e && p.y + 1.8 > a.y + e && p.y < a.y + 1 - e) {
+          return { result: "CANNOT_PLACE", placed: false };
+        }
         const wanted = String(a.state).includes(":") ? String(a.state) : `minecraft:${a.state}`;
         const base = wanted.replace(/\[.*$/, "");
         if (base.replace(/wall_torch$/, "torch") !== held.id) return { result: "NO_CLICK_GIVES_THAT_STATE", placed: false, reachable: [held.id] };
