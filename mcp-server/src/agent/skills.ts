@@ -1270,12 +1270,19 @@ export async function bedLeftBehind(rt: AgentRuntime, self: Pos, counts: Record<
  * a bed: nothing asked for them again once those steps were behind. The bed line waits for a pickaxe
  * (a fresh start gathers wood and stone first) and for the Overworld (beds explode elsewhere).
  */
-export function missingBasics(counts: Record<string, number>, dimension: string | undefined, bedNearby: boolean): string | undefined {
+/** Uses left on the best pickaxe below which agent_brief asks for a spare. */
+export const PICKAXE_WORN = 25;
+
+export function missingBasics(counts: Record<string, number>, dimension: string | undefined, bedNearby: boolean, pickaxeUses?: number): string | undefined {
   const has = (re: RegExp) => Object.keys(counts).some((id) => re.test(id) && (counts[id] ?? 0) > 0);
   const out: string[] = [];
   const pickaxe = has(/_pickaxe$/);
   if (!pickaxe) {
     out.push("no pickaxe (stone, coal and iron need one): craft it first — wooden_pickaxe from 3 planks and 2 sticks, stone_pickaxe from 3 cobblestone and 2 sticks");
+  } else if (pickaxeUses !== undefined && pickaxeUses < PICKAXE_WORN) {
+    // Staircases and tunnels wear a stone pickaxe out within a day or two; one agent kept finding itself
+    // without any, far from wood, after each one broke.
+    out.push(`pickaxe nearly worn out (${pickaxeUses} uses left): craft a spare now while you have the materials — stone_pickaxe from 3 cobblestone and 2 sticks`);
   }
   if (pickaxe && !has(BED) && !bedNearby && !/:(the_nether|the_end)$/.test(dimension ?? "")) {
     out.push("no bed (lost when you died?): make one by day to sleep through the nights — 3 wool of one color (fight types [\"sheep\"]) and 3 planks");

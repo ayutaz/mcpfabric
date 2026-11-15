@@ -21,7 +21,7 @@ export class FakeWorld implements Bridge {
   blocks = new Map<string, string>();
   player = { x: 0.5, y: 64, z: 0.5, health: 20, dimension: "minecraft:overworld", selected: 0 };
   /** Inventory slot → stack (0-8 hotbar, 9-35 main). */
-  slots = new Map<number, { id: string; count: number }>();
+  slots = new Map<number, { id: string; count: number; damage?: number; maxDamage?: number }>();
   containers = new Map<string, Map<number, { id: string; count: number }>>();
   recipes: Recipe[] = [];
   unreachable = new Set<string>();

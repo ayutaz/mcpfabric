@@ -28,6 +28,7 @@ All notable changes to this project are documented here. The format is based on
 - `agent_brief` lists basic tools the inventory lacks (`missing:`): a pickaxe, and once there is one, a
   bed in the Overworld when none stands nearby. A death drops everything, and agents went on for hours
   without either once those steps were done.
+  It also asks for a spare when the best pickaxe has fewer than 25 uses left.
 - `perception.entities` gives a thrown eye of ender and an end crystal the kind `object` (they were
   `other`, which is left out unless asked for), with the eye's horizontal motion (`vx`, `vz`);
   `surroundings` lists them under `objects`, the eye with the direction it flies (`flying NE`).

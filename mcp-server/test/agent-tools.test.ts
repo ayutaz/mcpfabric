@@ -60,6 +60,8 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
     assert.match(await tool("agent_brief"), /missing: no bed \(lost when you died\?\)/);
     world.give("minecraft:white_bed", 1);
     assert.doesNotMatch(await tool("agent_brief"), /missing:/);
+    for (const [slot, s] of world.slots) if (s.id === "minecraft:stone_pickaxe") world.slots.set(slot, { ...s, damage: 120, maxDamage: 131 });
+    assert.match(await tool("agent_brief"), /missing: pickaxe nearly worn out \(11 uses left\): craft a spare now/);
   },
   observe: async ({ world, rt, tool }) => {
     world.set({ x: 3, y: 64, z: 3 }, "minecraft:crafting_table").set({ x: 8, y: 60, z: 8 }, "minecraft:coal_ore");

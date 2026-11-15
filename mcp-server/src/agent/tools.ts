@@ -150,7 +150,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: "agent_brief",
     title: "Agent brief (resume here)",
     description:
-      "One-call situation report for resuming work after a restart or context loss: world id, your position/vitals/inventory, the active goal path, the running job, saved script skills, remembered places nearby, a bed left standing within 24 blocks while you carry none, basic tools you lack (pickaxe, bed), and a small map. Call this first in a new session.",
+      "One-call situation report for resuming work after a restart or context loss: world id, your position/vitals/inventory, the active goal path, the running job, saved script skills, remembered places nearby, a bed left standing within 24 blocks while you carry none, basic tools you lack (pickaxe, bed) or a pickaxe nearly worn out, and a small map. Call this first in a new session.",
     inputSchema: {},
     annotations: READ,
     run: async (rt, session) => {
@@ -164,7 +164,11 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       ];
       const bed = await bedLeftBehind(rt, at, counts).catch(() => undefined);
       if (bed) lines.push(bed);
-      const missing = missingBasics(counts, at.dim, bed !== undefined);
+      const inv = await rt.body.inventory().catch(() => undefined);
+      const uses = inv && [...inv.hotbar, ...inv.main]
+        .filter((s) => /_pickaxe$/.test(s.id) && s.maxDamage)
+        .map((s) => s.maxDamage! - (s.damage ?? 0));
+      const missing = missingBasics(counts, at.dim, bed !== undefined, uses && uses.length > 0 ? Math.max(...uses) : undefined);
       if (missing) lines.push(missing);
       const next = rt.goals.next(world);
       const goals = rt.goals.all(world);
