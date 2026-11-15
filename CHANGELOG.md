@@ -22,6 +22,8 @@ All notable changes to this project are documented here. The format is based on
   with `collect_blocks` (`break_block` alone leaves it on the ground). Click results are compared case-insensitively
   (1.21.2+ prints `Success[...]`; on a dedicated server `placed` is null).
 - `get_self` / `player.getState` report `sleeping` (lying in a bed).
+- `agent_brief` names a bed standing within 24 blocks while the inventory holds none (the one slept in,
+  left behind when a new session starts in the morning) and says to take it with `collect_blocks`.
 - `visionLineOfSight` config flag (client, off by default) with `visionRange` (default 48): `perception.scan`
   only reports ores, searched blocks and points of interest the player can see (a face toward the eye open to
   air, glass or water, and a clear line to it); the scan result says `lineOfSight`. With it on, `observe` says

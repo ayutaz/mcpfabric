@@ -1163,6 +1163,22 @@ async function makeRoomForBed(rt: AgentRuntime, ctx: JobContext, self: Pos): Pro
  * "monsters nearby", "obstructed" and "too far" end the job with the game's message. Sleeping also
  * sets the respawn point to the bed.
  */
+/**
+ * A bed within 24 blocks while none is in the inventory: the one slept in last night, left standing.
+ * New sessions start from agent_brief, so the brief says to take it along (x2-night-rx5-2h@v3 slept,
+ * then walked off in the morning without it and had no bed the next night).
+ */
+export async function bedLeftBehind(rt: AgentRuntime, self: Pos, counts: Record<string, number>): Promise<string | undefined> {
+  if (Object.keys(counts).some((id) => BED.test(id) && (counts[id] ?? 0) > 0)) return undefined;
+  const scan = await rt.body.scan({ radius: 1 });
+  const bed = scan.pois
+    .filter((p) => BED.test(p.id) && distance(p, self) <= 24)
+    .sort((a, b) => distance(a, self) - distance(b, self))[0];
+  if (!bed) return undefined;
+  return `bed: ${shortId(bed.id)} at ${fmtPos(bed)} (${Math.round(distance(bed, self))} m) is not in your inventory: ` +
+    `take it with collect_blocks {"blocks": ["${shortId(bed.id)}"], "count": 1} before you move on, or you have no bed next night`;
+}
+
 export async function sleepInBed(rt: AgentRuntime, ctx: JobContext, opts: SleepOptions = {}): Promise<string> {
   const deadline = Date.now() + (opts.maxSeconds ?? 90) * 1000;
   const self0 = await rt.body.self();

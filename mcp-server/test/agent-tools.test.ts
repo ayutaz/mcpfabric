@@ -211,9 +211,12 @@ const AGENT_TOOL_CASES: Record<string, (h: Harness) => Promise<void>> = {
       world.player.z = 0.5;
     };
     wake();
+    // A new session starts from agent_brief: it names the bed left standing.
+    assert.match(await tool("agent_brief"), /\nbed: red_bed at -?\d+ 64 -?\d+ \(\d+ m\) is not in your inventory: take it with collect_blocks \{"blocks": \["red_bed"\], "count": 1\}/);
     // The advice works: collect_blocks breaks the bed and picks it up.
     assert.match(await tool("collect_blocks", { blocks: ["red_bed"], count: 1, waitSeconds: 30 }), /\[done\][\s\S]*inventory \+.*red_bed/);
     assert.equal(world.count("minecraft:red_bed"), 1, "the bed is back in the inventory");
+    assert.doesNotMatch(await tool("agent_brief"), /\nbed: /, "nothing to say once the bed is carried");
     world.give("minecraft:red_bed", 0);
     assert.match(await tool("sleep_in_bed", { waitSeconds: 30 }), /\[done\]/);
     wake();
