@@ -66,6 +66,7 @@ const BRIDGE_TOOLS = {
   // control
   set_movement: { method: "control.setInput", args: { forward: true, sprint: true }, invalid: { forward: "yes" } },
   stop_movement: { method: "control.stop", args: {} },
+  dig_in: { method: "control.shelter", args: {} },
   look: { method: "control.look", args: { yaw: 90, pitch: -10 }, invalid: { yaw: "north" } },
   look_at: { method: "control.lookAt", args: { ...pos }, invalid: { x: 10, y: 64 } },
   jump: { method: "control.jumpOnce", args: {} },

@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- `dig_in` tool (`control.shelter`): starts the respawn shelter reflex on request, from where the player
+  stands (needs `reflexes`): dry ground nearby, three blocks down, sealed, held until morning once no
+  monster is close. Agents that dug their own night holes were killed through gaps they left (16 of 35
+  deaths in a 24-hour run came at night); the reflex's holes had not been broken into.
 - `fight` agent job: equips the best sword or axe, closes in on the nearest hostile mob and swings on
   the weapon's cooldown until none is left in the radius; stops at low health and skips creepers
   unless asked.

@@ -52,6 +52,7 @@ tested without a game. The mod only gained what needs game access:
 | `recipes.query` | client | recipes producing given items: type, result, one list of accepted ids per slot, `known` (unlocked) |
 | `craft.place` | client | place a recipe into the open crafting grid through the recipe book (needs `enablePlayerControl`; capability group `crafting`) |
 | `interact.stopBreaking` | client | stop an unfinished survival mining action |
+| `control.shelter` | client | start the respawn shelter reflex from where the player stands (`dig_in`): dig in nearby, seal, hold until morning (needs `reflexes`) |
 
 Perception reads the client's own copy of the world. It therefore works on vanilla multiplayer
 servers, unlike the server-only `world.*` tools. It also sees through walls and as far as the loaded

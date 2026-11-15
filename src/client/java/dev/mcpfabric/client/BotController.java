@@ -669,6 +669,23 @@ public final class BotController {
 		return shelter.lastResult();
 	}
 
+	/**
+	 * Starts the shelter reflex from where the player stands ({@code control.shelter}), with the same
+	 * steps as after a respawn: from shortly before dusk it digs in for the night, by day only with a
+	 * monster close. Movement, navigation and mining that run are stopped first. Returns "armed", or why
+	 * not: "off" (config {@code reflexes} disabled), "running" (it already runs), "dead".
+	 */
+	public synchronized String requestShelter(LocalPlayer p) {
+		if (!McpFabric.config().reflexes) return "off";
+		if (shelter.active()) return "running";
+		if (p == null || p.isDeadOrDying()) return "dead";
+		stopAllMovement();
+		stopMining();
+		if (path != null) stopNavigationInternal("shelter");
+		shelter.onRequest();
+		return "armed";
+	}
+
 	// --- for ShelterReflex (called on the client tick, under this lock) ---------------------
 
 	void reflexNavigate(List<NavPlanner.Step> path, BlockPos start, BlockPos target, long deadlineMillis) {

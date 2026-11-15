@@ -459,6 +459,15 @@ export const TOOLS: ToolDef[] = [
     annotations: STEER,
   },
   {
+    name: "dig_in",
+    method: "control.shelter",
+    title: "Dig in for the night",
+    description:
+      "Client-only; needs the mod's reflexes. Starts the respawn shelter reflex from where you stand: the client walks to dry ground nearby (away from water and monsters), digs three blocks straight down, seals the top with a dug block and holds there until morning once no monster is close. Self-dug holes let mobs in through gaps; this one is sealed on every side. It works from shortly before dusk (day time 11000); by day only with a monster close. Movement commands are refused while it runs (get_self shows reflex \"shelter_<phase>\"); it ends after dawn, when you are hurt down to low health, or if a step fails (reflexShelterResult tells how). Returns result \"armed\", or \"off\" / \"running\" / \"dead\".",
+    inputSchema: {},
+    annotations: STEER,
+  },
+  {
     name: "look",
     method: "control.look",
     title: "Set/adjust look angles",

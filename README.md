@@ -354,7 +354,7 @@ claude --dangerously-load-development-channels server:mcpfabric
 **command** — `run_command` (any operator-level command, with output capture)
 **chat** — `send_chat`, `show_message` (client: only the local player sees it), `get_recent_chat`
 **player (local, client)** — `get_self`, `get_inventory`, `get_equipment`, `get_status_effects`
-**control (client)** — `set_movement`, `stop_movement`, `look`, `look_at`, `jump`, `start_using_item`, `stop_using_item`
+**control (client)** — `set_movement`, `stop_movement`, `dig_in`, `look`, `look_at`, `jump`, `start_using_item`, `stop_using_item`
 **interact (client)** — `break_block`, `place_block`, `place_block_at` (into a cell with a given facing/half/hinge), `use_item`, `attack_entity`, `use_entity`, `drop_held_item`
 **inventory (client)** — `select_hotbar_slot`, `drop_slot`, `swap_slots`
 **vision (client)** — `screenshot` (PNG for vision models; `marks: true` numbers the mobs and players in view and lists their uuids), `describe_scene`

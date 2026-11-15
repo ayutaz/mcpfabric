@@ -68,6 +68,14 @@ public final class ControlHandlers {
 			return look(p);
 		}));
 
+		// The respawn shelter reflex on request: dig three blocks down nearby, seal the top, hold till morning.
+		router.register("control.shelter", ctx -> ClientMc.call(() -> {
+			Gates.playerControl();
+			JsonObject o = new JsonObject();
+			o.addProperty("result", BotController.get().requestShelter(ClientMc.player()));
+			return o;
+		}));
+
 		router.register("control.startUsing", ctx -> ClientMc.call(() -> {
 			Gates.playerControl();
 			ClientMc.mc().options.keyUse.setDown(true);

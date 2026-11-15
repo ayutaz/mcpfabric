@@ -37,7 +37,9 @@ import java.util.Locale;
  * digs in as well when a monster is close (the world spawn is a dark forest), and comes out once none is
  * left nearby or after a minute or so ({@link ShelterSite#holdsInDay}). While it runs,
  * movement commands are refused ({@code reflex_shelter}); it ends after dawn once no monster is close
- * ({@link ShelterSite#holdsAt}), when the player is hurt down to low health, or when a step fails. Driven by {@link BotController} on the client tick, under its lock.
+ * ({@link ShelterSite#holdsAt}), when the player is hurt down to low health, or when a step fails. It can
+ * also be started on request ({@code control.shelter}): self-dug shelters let mobs in through gaps.
+ * Driven by {@link BotController} on the client tick, under its lock.
  */
 final class ShelterReflex {
 	enum Phase { IDLE, ARMED, DRY, DIG, SEAL, HOLD }
@@ -102,6 +104,11 @@ final class ShelterReflex {
 		candidates = List.of();
 		here = null;
 		planned = 0;
+	}
+
+	/** Started on request ({@code control.shelter}): the steps after a respawn, from where the player stands. */
+	void onRequest() {
+		onRespawn();
 	}
 
 	/** Movement commands from the bridge are refused meanwhile. */
