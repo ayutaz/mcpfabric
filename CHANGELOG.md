@@ -10,7 +10,8 @@ All notable changes to this project are documented here. The format is based on
 
 - Guard reflex (with `reflexes` on): whenever the attack is fully charged, the bot hits the nearest
   hostile mob within melee reach that it can see, with a hotbar sword or axe if it has one (the held slot
-  is restored right after), except creepers, endermen and piglins. Agent jobs fought back only while
+  is restored right after), except creepers, piglins and endermen that are not angry yet (an angry one
+  attacks anyway). Agent jobs fought back only while
   walking or mining; between model turns and inside scripts the bot stood still, and zombies, skeletons
   and spiders caused most of the deaths in a 24-hour run. It also hits from inside the shelter reflex's
   hole; not in a screen or asleep. `player.getState` counts the hits in `reflexHits`.

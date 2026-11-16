@@ -19,7 +19,8 @@ import net.minecraft.world.phys.AABB;
  * within melee reach that the player can see, with a sword or axe from the hotbar if there is one (the
  * held slot is restored right after). Agent jobs fight back only while they walk or mine; between model
  * turns and inside scripts the player stood still while zombies killed it. Never hits creepers (a hit
- * does not stop the fuse) nor endermen and piglins, which a hit turns hostile. It also runs while the
+ * does not stop the fuse) nor piglins, which a hit turns hostile, nor endermen unless one is already angry
+ * (it attacks anyway: two agents in a row were killed by endermen it would not hit). It also runs while the
  * shelter reflex holds the player in a hole: zombies reaching in killed agents there. Ticked by
  * {@link BotController} under its lock.
  */
@@ -61,7 +62,7 @@ final class GuardReflex {
 
 	private static boolean hostile(Entity e) {
 		return e instanceof Enemy && e instanceof LivingEntity living && living.isAlive()
-				&& !(e instanceof Creeper) && !(e instanceof EnderMan) && !(e instanceof ZombifiedPiglin)
+				&& !(e instanceof Creeper) && !(e instanceof EnderMan enderman && !enderman.isCreepy()) && !(e instanceof ZombifiedPiglin)
 				&& !(e instanceof AbstractPiglin);
 	}
 
