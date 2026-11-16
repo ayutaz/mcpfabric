@@ -55,6 +55,8 @@ public final class BotController {
 	private final ShelterReflex shelter = new ShelterReflex(this);
 	/** Reflex: swims to air or digs an air pocket when the air runs low (see {@link AirReflex}). */
 	private final AirReflex air = new AirReflex(this);
+	/** Reflex: hits a hostile mob in melee reach (see {@link GuardReflex}). */
+	private final GuardReflex guard = new GuardReflex();
 	/** The air reflex sinks toward its way out: sneak instead of the swim reflex's jump. */
 	private boolean airSink;
 	private LocalPlayer lastPlayer;
@@ -229,6 +231,7 @@ public final class BotController {
 				air.cancel();
 			}
 			if (air.active() && path != null && !reflexNav) stopNavigationInternal("low_air");
+			if (reflexes && !shelter.active()) guard.tick(mc, p);
 			if (path != null) {
 				steer(mc, p);
 			}
@@ -641,7 +644,7 @@ public final class BotController {
 		return -1;
 	}
 
-	private static int selectedSlot(LocalPlayer p) {
+	static int selectedSlot(LocalPlayer p) {
 		//? if >=1.21.5 {
 		return p.getInventory().getSelectedSlot();
 		//?} else
@@ -787,6 +790,11 @@ public final class BotController {
 		reflexMiningResult = null;
 		fwd = back = left = right = jumpHeld = sneak = sprint = false;
 		airSink = false;
+	}
+
+	/** Hits the guard reflex landed since the client started. */
+	public synchronized long reflexHits() {
+		return guard.hits();
 	}
 
 	/** Client ticks the swim reflex has held jump since the client started. */
