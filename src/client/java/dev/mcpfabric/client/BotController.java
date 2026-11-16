@@ -231,7 +231,7 @@ public final class BotController {
 				air.cancel();
 			}
 			if (air.active() && path != null && !reflexNav) stopNavigationInternal("low_air");
-			if (reflexes && !shelter.active()) guard.tick(mc, p);
+			if (reflexes) guard.tick(mc, p); // in the shelter hole too: a hit does not move the player
 			if (path != null) {
 				steer(mc, p);
 			}

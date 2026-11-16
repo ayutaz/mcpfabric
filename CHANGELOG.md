@@ -12,8 +12,8 @@ All notable changes to this project are documented here. The format is based on
   hostile mob within melee reach that it can see, with a hotbar sword or axe if it has one (the held slot
   is restored right after), except creepers, endermen and piglins. Agent jobs fought back only while
   walking or mining; between model turns and inside scripts the bot stood still, and zombies, skeletons
-  and spiders caused most of the deaths in a 24-hour run. Not while the shelter reflex holds the player
-  in a hole, in a screen, or asleep. `player.getState` counts the hits in `reflexHits`.
+  and spiders caused most of the deaths in a 24-hour run. It also hits from inside the shelter reflex's
+  hole; not in a screen or asleep. `player.getState` counts the hits in `reflexHits`.
 - Air reflex (with `reflexes` on): under water with half of the air gone, the bot searches through water
   and air (never lava) for the nearest cell where its head is out of the water and swims there, sinking
   with sneak where the way goes down; over a sealed flooded cave, or where it is quicker, it digs an air
