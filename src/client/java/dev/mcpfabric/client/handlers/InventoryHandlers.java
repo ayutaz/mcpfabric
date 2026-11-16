@@ -60,7 +60,7 @@ public final class InventoryHandlers {
 	 * {@code handleInventoryMouseClick(..., ClickType, ...)} became
 	 * {@code handleContainerInput(..., ContainerInput, ...)} in 26.1 (same constant names).
 	 */
-	static void containerClick(MultiPlayerGameMode gm, int containerId, int slot, int button, String mode, LocalPlayer p) {
+	public static void containerClick(MultiPlayerGameMode gm, int containerId, int slot, int button, String mode, LocalPlayer p) {
 		String name = mode.toUpperCase(java.util.Locale.ROOT);
 		//? if <26.1 {
 		gm.handleInventoryMouseClick(containerId, slot, button, ClickType.valueOf(name), p);

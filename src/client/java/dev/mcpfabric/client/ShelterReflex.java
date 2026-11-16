@@ -3,6 +3,7 @@ package dev.mcpfabric.client;
 import com.google.gson.JsonObject;
 import dev.mcpfabric.McpFabric;
 import dev.mcpfabric.client.handlers.InteractHandlers;
+import dev.mcpfabric.client.handlers.InventoryHandlers;
 import dev.mcpfabric.client.nav.LevelNavWorld;
 import dev.mcpfabric.nav.NavPlanner;
 import dev.mcpfabric.nav.NavPos;
@@ -12,9 +13,14 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -27,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Predicate;
 
 /**
  * Respawn shelter reflex (config {@code reflexes}): after a respawn at night the bot walks to dry
@@ -39,6 +46,9 @@ import java.util.Locale;
  * movement commands are refused ({@code reflex_shelter}); it ends after dawn once no monster is close
  * ({@link ShelterSite#holdsAt}), when the player is hurt down to low health, or when a step fails. It can
  * also be started on request ({@code control.shelter}): self-dug shelters let mobs in through gaps.
+ * Before it looks for a site it moves the best pickaxe, and a stack of throwaway blocks, from the main
+ * inventory into the hotbar when the hotbar has none (digging and sealing only use the hotbar); with a
+ * pickaxe, stone and deepslate count as giving a block to seal with (cobblestone, cobbled deepslate).
  * Driven by {@link BotController} on the client tick, under its lock.
  */
 final class ShelterReflex {
@@ -188,6 +198,8 @@ final class ShelterReflex {
 		daytime = !night;
 		if (daytime) dayStarts++;
 		emit(daytime ? "start_day" : "start", p.blockPosition());
+		if (toHotbar(mc, p, s -> s.is(ItemTags.PICKAXES))) emit("pickaxe_to_hotbar", p.blockPosition());
+		if (toHotbar(mc, p, LevelNavWorld::throwaway)) emit("blocks_to_hotbar", p.blockPosition());
 		relocations = 0;
 		planned = 0;
 		search(level, p);
@@ -199,7 +211,7 @@ final class ShelterReflex {
 	/** Candidate sites around where the player is now, cheapest first (its own column if that will do). */
 	private void search(ClientLevel level, LocalPlayer p) {
 		List<ShelterSite.Site> found = ShelterSite.find(new LevelNavWorld(level, p), pos(p.blockPosition()), SEARCH_RADIUS,
-				SEARCH_UP, SEARCH_DOWN, BotController.throwawaySlot(p) >= 0, q -> givesBlock(level, q));
+				SEARCH_UP, SEARCH_DOWN, BotController.throwawaySlot(p) >= 0, q -> givesBlock(level, p, q));
 		// Digging takes seconds: sites next to a monster (often waiting at the spawn) go last.
 		List<ShelterSite.Site> sorted = new ArrayList<>(found);
 		sorted.sort(Comparator.comparing((ShelterSite.Site s) -> enemyNear(level, s.feet().x() + 0.5, s.feet().y(),
@@ -213,7 +225,7 @@ final class ShelterReflex {
 		NavPos from = pos(p.blockPosition());
 		LevelNavWorld world = new LevelNavWorld(level, p);
 		String why = ShelterSite.reject(world, from.x(), from.y(), from.z(), BotController.throwawaySlot(p) >= 0,
-				q -> givesBlock(level, q));
+				q -> givesBlock(level, p, q));
 		if (why == null) return null;
 		StringBuilder col = new StringBuilder(why).append(" |");
 		for (int dy = 1; dy >= -ShelterSite.DEPTH - 1; dy--) {
@@ -326,6 +338,10 @@ final class ShelterReflex {
 			return;
 		}
 		int slot = BotController.throwawaySlot(p);
+		if (slot < 0 && mc.screen == null && toHotbar(mc, p, LevelNavWorld::throwaway)) {
+			placeCooldown = 2; // the dug blocks went to the main inventory (a full hotbar)
+			return;
+		}
 		if (slot < 0) {
 			if (phaseTicks > 60) finish("no_blocks");
 			return;
@@ -419,8 +435,63 @@ final class ShelterReflex {
 		return false;
 	}
 
-	private static boolean givesBlock(ClientLevel level, NavPos q) {
-		return givesBlock(level.getBlockState(new BlockPos(q.x(), q.y(), q.z())));
+	private static boolean givesBlock(ClientLevel level, LocalPlayer p, NavPos q) {
+		BlockState s = level.getBlockState(new BlockPos(q.x(), q.y(), q.z()));
+		return givesBlock(s) || (minedToThrowaway(s) && harvestsFromHotbar(p, s));
+	}
+
+	/** Mined with a pickaxe it drops a throwaway block (stone → cobblestone, deepslate → cobbled deepslate). */
+	private static boolean minedToThrowaway(BlockState s) {
+		return s.is(BlockTags.BASE_STONE_OVERWORLD) || s.is(Blocks.COBBLESTONE) || s.is(Blocks.COBBLED_DEEPSLATE)
+				|| s.is(Blocks.NETHERRACK);
+	}
+
+	private static boolean harvestsFromHotbar(LocalPlayer p, BlockState s) {
+		for (int slot = 0; slot < 9; slot++) {
+			if (p.getInventory().getItem(slot).isCorrectToolForDrops(s)) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * When no hotbar slot holds what {@code want} accepts, swaps the best such stack of the main inventory
+	 * (the fastest pickaxe on stone, else the biggest stack) into an empty hotbar slot, else into one that
+	 * holds nothing the bot keeps at hand (tools, weapons, blocks, food, a bed). True when it moved one.
+	 */
+	private static boolean toHotbar(Minecraft mc, LocalPlayer p, Predicate<ItemStack> want) {
+		if (mc.gameMode == null || mc.screen != null) return false;
+		Inventory inv = p.getInventory();
+		for (int slot = 0; slot < 9; slot++) {
+			if (want.test(inv.getItem(slot))) return false;
+		}
+		int from = -1;
+		float best = -1;
+		for (int slot = 9; slot < 36; slot++) {
+			ItemStack stack = inv.getItem(slot);
+			if (stack.isEmpty() || !want.test(stack)) continue;
+			float score = stack.is(ItemTags.PICKAXES) ? stack.getDestroySpeed(Blocks.STONE.defaultBlockState()) : stack.getCount();
+			if (score > best) {
+				best = score;
+				from = slot;
+			}
+		}
+		if (from < 0) return false;
+		int to = -1;
+		for (int slot = 0; slot < 9 && to < 0; slot++) {
+			if (inv.getItem(slot).isEmpty()) to = slot;
+		}
+		for (int slot = 8; slot >= 0 && to < 0; slot--) {
+			if (!keptAtHand(inv.getItem(slot))) to = slot;
+		}
+		if (to < 0) return false;
+		// A swap click on the player's own inventory menu: main slots 9-35 are menu slots 9-35, the button the hotbar slot.
+		InventoryHandlers.containerClick(mc.gameMode, p.inventoryMenu.containerId, from, to, "swap", p);
+		return true;
+	}
+
+	private static boolean keptAtHand(ItemStack s) {
+		return s.is(ItemTags.PICKAXES) || s.is(ItemTags.AXES) || s.is(ItemTags.SHOVELS) || s.is(ItemTags.SWORDS)
+				|| s.is(ItemTags.BEDS) || s.has(DataComponents.FOOD) || LevelNavWorld.throwaway(s);
 	}
 
 	/** Breaking it by hand drops a block the body can place (dirt). */

@@ -100,6 +100,15 @@ All notable changes to this project are documented here. The format is based on
 - The `run_script` description no longer suggests `find_blocks` as an example and says that agent tools
   are not script helpers and that world scans need an integrated server.
 
+### Fixed
+
+- The shelter reflex moves the best pickaxe, and a stack of throwaway blocks, from the main inventory
+  into the hotbar when the hotbar has none (`reflex_shelter` events `pickaxe_to_hotbar`,
+  `blocks_to_hotbar`), and again when the dug blocks went to the main inventory before sealing. With a
+  pickaxe in the hotbar, stone and deepslate count as giving a block to seal with. In a 24-hour run a
+  quarter of the nights found no site, mostly with deepslate to dig by hand (300 ticks, more than the
+  limit) or "no block to seal" (only stone under the feet and no blocks in the hotbar).
+
 ## [0.10.0] - 2026-11-09
 
 Fabric and NeoForge. 0.9.1 was never published; its fix ships here.
